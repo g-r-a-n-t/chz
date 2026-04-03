@@ -17,13 +17,13 @@ use ingot::{
 
 const NIBBLE_MASK: u256 = 0xF
 
-pub fn piece_at(board_word: u256, sq: u8) -> u8 {
+pub fn piece_at(_ board_word: u256, _ sq: u8) -> u8 {
     let shift: u256 = (sq as u256) * 4
     let piece: u256 = (board_word >> shift) & NIBBLE_MASK
     piece.downcast_truncate()
 }
 
-pub fn set_piece(board_word: u256, sq: u8, piece: u8) -> u256 {
+pub fn set_piece(_ board_word: u256, _ sq: u8, _ piece: u8) -> u256 {
     let shift: u256 = (sq as u256) * 4
     let mask: u256 = NIBBLE_MASK << shift
     let cleared = board_word & ~mask
@@ -31,11 +31,11 @@ pub fn set_piece(board_word: u256, sq: u8, piece: u8) -> u256 {
     cleared | insert
 }
 
-pub fn clear_piece(board_word: u256, sq: u8) -> u256 {
+pub fn clear_piece(_ board_word: u256, _ sq: u8) -> u256 {
     set_piece(board_word, sq, PIECE_EMPTY)
 }
 
-pub fn move_piece(board_word: u256, from_sq: u8, to_sq: u8) -> u256 {
+pub fn move_piece(_ board_word: u256, _ from_sq: u8, _ to_sq: u8) -> u256 {
     let piece = piece_at(board_word, from_sq)
     let cleared = clear_piece(board_word, from_sq)
     set_piece(cleared, to_sq, piece)

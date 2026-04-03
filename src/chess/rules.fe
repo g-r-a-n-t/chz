@@ -125,7 +125,7 @@ fn path_clear_diag(board_word: u256, from_file: u8, from_rank: u8, to_file: u8, 
     true
 }
 
-fn promo_piece(is_white: bool, promo: u8) -> u8 {
+fn promo_piece(_ is_white: bool, _ promo: u8) -> u8 {
     if is_white {
         if promo == 1 { PIECE_WN }
         else if promo == 2 { PIECE_WB }
@@ -706,7 +706,7 @@ fn apply_king(
     })
 }
 
-pub fn validate_move(board_word: u256, meta_word: u256, mv: Move) -> Result<ValidationError, (u256, u256)> {
+pub fn validate_move(_ board_word: u256, _ meta_word: u256, _ mv: Move) -> Result<ValidationError, (u256, u256)> {
     let (from_sq, to_sq, promo) = decode_move(mv)
     let stm_white = meta_side_to_move_is_white(meta_word)
 

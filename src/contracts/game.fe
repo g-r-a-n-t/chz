@@ -1,6 +1,5 @@
-use std::evm::{Ctx, Log}
+use std::evm::{Call, Ctx, Log}
 use std::evm::effects::assert
-use std::evm::ops
 use std::abi::sol
 
 use ingot::{
@@ -30,7 +29,7 @@ const CLAIM_FIFTY_MOVE: u8 = 0x02
 const DRAW_REASON_THREEFOLD: u8 = 1
 const DRAW_REASON_FIFTY_MOVE: u8 = 2
 
-fn is_repetition_reset_move(board_word: u256, mv: u32) -> bool {
+fn is_repetition_reset_move(_ board_word: u256, _ mv: u32) -> bool {
     let (from_sq, to_sq, _) = decode_move(mv)
     let moving_piece = piece_at(board_word, from_sq)
     if moving_piece == PIECE_EMPTY {
@@ -42,7 +41,7 @@ fn is_repetition_reset_move(board_word: u256, mv: u32) -> bool {
     }
 }
 
-fn status_u8(status: GameStatus) -> u8 {
+fn status_u8(_ status: GameStatus) -> u8 {
     match status {
         GameStatus::Ongoing => STATUS_ONGOING,
         GameStatus::WhiteWon => STATUS_WHITE_WON,
@@ -51,7 +50,7 @@ fn status_u8(status: GameStatus) -> u8 {
     }
 }
 
-fn reason_u8(reason: EndReason) -> u8 {
+fn reason_u8(_ reason: EndReason) -> u8 {
     match reason {
         EndReason::None => 0,
         EndReason::Checkmate => 1,
@@ -68,17 +67,8 @@ fn reason_u8(reason: EndReason) -> u8 {
     }
 }
 
-fn send_value(to: Address, value: u256) -> bool {
-    let ok = ops::call(
-        gas: ops::gas(),
-        addr: to.inner,
-        value: value,
-        args_offset: 0,
-        args_len: 0,
-        ret_offset: 0,
-        ret_len: 0,
-    )
-    ok != 0
+fn send_value(_ to: Address, _ value: u256) -> bool uses (ctx: Ctx, call: mut Call) {
+    call.raw_call(addr: to, gas: ctx.gas(), value: value, args_offset: 0, args_len: 0)
 }
 
 #[event]
@@ -140,7 +130,7 @@ msg ChzGameMsg {
     WithdrawTo { to: Address } -> bool,
 }
 
-pub contract ChzGame uses (ctx: Ctx, log: mut Log) {
+pub contract ChzGame uses (ctx: Ctx, log: mut Log, call: mut Call) {
     mut store: GameStore
 
     #[payable]
@@ -380,7 +370,7 @@ pub contract ChzGame uses (ctx: Ctx, log: mut Log) {
             true
         }
 
-        WithdrawTo { to } -> bool uses (mut store, ctx, mut log) {
+        WithdrawTo { to } -> bool uses (mut store, ctx, mut log, mut call) {
             let sender = ctx.caller()
             let mut amount: u256 = 0
 

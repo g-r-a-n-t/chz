@@ -7,7 +7,7 @@ use ingot::{
 
 use ingot::{abs_diff, is_black_piece, is_white_piece, piece_kind, sq, sq_file, sq_rank}
 
-fn is_attacker(piece: u8, by_white: bool, kind: u8) -> bool {
+fn is_attacker(_ piece: u8, _ by_white: bool, _ kind: u8) -> bool {
     if by_white {
         is_white_piece(piece) && piece_kind(piece) == kind
     } else {
@@ -15,7 +15,7 @@ fn is_attacker(piece: u8, by_white: bool, kind: u8) -> bool {
     }
 }
 
-pub fn is_square_attacked(board_word: u256, meta_word: u256, sq0: u8, by_white: bool) -> bool {
+pub fn is_square_attacked(_ board_word: u256, _ meta_word: u256, _ sq0: u8, _ by_white: bool) -> bool {
     let file = sq_file(sq0)
     let rank = sq_rank(sq0)
 
@@ -242,7 +242,7 @@ pub fn is_square_attacked(board_word: u256, meta_word: u256, sq0: u8, by_white: 
     false
 }
 
-pub fn in_check(board_word: u256, meta_word: u256, white_side: bool) -> bool {
+pub fn in_check(_ board_word: u256, _ meta_word: u256, _ white_side: bool) -> bool {
     if white_side {
         is_square_attacked(board_word, meta_word, meta_white_king_sq(meta_word), false)
     } else {

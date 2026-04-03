@@ -15,7 +15,7 @@ const STATUS_WHITE_WON: u8 = 1
 const STATUS_BLACK_WON: u8 = 2
 const STATUS_DRAW: u8 = 3
 
-fn status_u8(status: GameStatus) -> u8 {
+fn status_u8(_ status: GameStatus) -> u8 {
     match status {
         GameStatus::Ongoing => STATUS_ONGOING,
         GameStatus::WhiteWon => STATUS_WHITE_WON,
@@ -24,7 +24,7 @@ fn status_u8(status: GameStatus) -> u8 {
     }
 }
 
-fn reason_u8(reason: EndReason) -> u8 {
+fn reason_u8(_ reason: EndReason) -> u8 {
     match reason {
         EndReason::None => 0,
         EndReason::Checkmate => 1,

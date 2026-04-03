@@ -1,6 +1,6 @@
 use core::num::IntDowncast
 use std::abi::sol
-use std::evm::ops
+use std::evm::RawOps
 
 use ingot::{
     canonical_ep_file,
@@ -23,20 +23,20 @@ use ingot::{
 const PANIC_SELECTOR_WORD: u256 = 0x4e487b71 << 224
 const PANIC_ASSERTION: u256 = 0x01
 
-fn panic(_ code: u256) -> ! {
+fn panic(_ code: u256) -> ! uses (raw: mut RawOps) {
     // Encode `Panic(uint256)` as `selector || uint256(code)` and revert.
-    ops::mstore(0, PANIC_SELECTOR_WORD)
-    ops::mstore(4, code)
-    ops::revert(0, 36)
+    raw.mstore(addr: 0, value: PANIC_SELECTOR_WORD)
+    raw.mstore(addr: 4, value: code)
+    raw.revert(offset: 0, len: 36)
 }
 
-fn panic_assert(_ ok: bool) {
+fn panic_assert(_ ok: bool) uses (raw: mut RawOps) {
     if !ok {
         panic(PANIC_ASSERTION)
     }
 }
 
-fn prove_canonical_ep_no_adj_pawn_for_file_stm(board_word: u256, meta_word: u256, ep_file: u8, stm_white: bool) {
+fn prove_canonical_ep_no_adj_pawn_for_file_stm(_ board_word: u256, _ meta_word: u256, _ ep_file: u8, _ stm_white: bool) uses (raw: mut RawOps) {
     let meta2 = meta_set_side_to_move(meta_set_ep_file(meta_word, ep_file), stm_white)
     let from_rank: u8 = if stm_white { 4 } else { 3 }
 
@@ -91,9 +91,9 @@ msg ChzProofsMsg {
 ///
 /// These are intended to validate invariants about the packed nibbleboard helpers
 /// without pulling in the full chess rules.
-pub contract ChzProofs {
+pub contract ChzProofs uses (raw: mut RawOps) {
     recv ChzProofsMsg {
-        ProvePieceAtSetPiece { board_word, sq_word, piece_word } -> bool {
+        ProvePieceAtSetPiece { board_word, sq_word, piece_word } -> bool uses (mut raw) {
             if sq_word >= 64 {
                 return true
             }
@@ -106,7 +106,7 @@ pub contract ChzProofs {
             true
         }
 
-        ProvePieceAtClearPiece { board_word, sq_word } -> bool {
+        ProvePieceAtClearPiece { board_word, sq_word } -> bool uses (mut raw) {
             if sq_word >= 64 {
                 return true
             }
@@ -117,7 +117,7 @@ pub contract ChzProofs {
             true
         }
 
-        ProveMovePieceEquiv { board_word, from_word, to_word } -> bool {
+        ProveMovePieceEquiv { board_word, from_word, to_word } -> bool uses (mut raw) {
             if from_word >= 64 || to_word >= 64 {
                 return true
             }
@@ -134,7 +134,7 @@ pub contract ChzProofs {
             true
         }
 
-        ProveSetPiecePreservesOtherSquare { board_word, sq_word, other_word, piece_word } -> bool {
+        ProveSetPiecePreservesOtherSquare { board_word, sq_word, other_word, piece_word } -> bool uses (mut raw) {
             if sq_word >= 64 || other_word >= 64 {
                 return true
             }
@@ -152,7 +152,7 @@ pub contract ChzProofs {
             true
         }
 
-        ProveCanonicalEpNoAdjPawn { board_word, meta_word } -> bool {
+        ProveCanonicalEpNoAdjPawn { board_word, meta_word } -> bool uses (mut raw) {
             // Prove the property for each EP file (0..7) and each side-to-move.
             // This makes the `sq`/`piece_at` shifts constant and tractable for hevm symbolic.
             prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 0, true)
@@ -175,7 +175,7 @@ pub contract ChzProofs {
             true
         }
 
-        ProveRepetitionHashIgnoresHalfFullNoEp { board_word, meta_word, half_word, full_word } -> bool {
+        ProveRepetitionHashIgnoresHalfFullNoEp { board_word, meta_word, half_word, full_word } -> bool uses (mut raw) {
             let half: u16 = half_word.downcast_truncate()
             let full: u16 = full_word.downcast_truncate()
 

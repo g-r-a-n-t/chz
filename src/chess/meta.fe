@@ -25,66 +25,66 @@ const HALF_MASK: u256 = 0xFF
 const FULL_MASK: u256 = 0xFFFF
 const KING_SQ_MASK: u256 = 0x3F
 
-pub fn meta_side_to_move_is_white(meta: u256) -> bool {
+pub fn meta_side_to_move_is_white(_ meta: u256) -> bool {
     ((meta >> STM_SHIFT) & STM_MASK) == 1
 }
 
-pub fn meta_set_side_to_move(meta: u256, white_to_move: bool) -> u256 {
+pub fn meta_set_side_to_move(_ meta: u256, _ white_to_move: bool) -> u256 {
     let bit: u256 = if white_to_move { 1 } else { 0 }
     let cleared = meta & ~(STM_MASK << STM_SHIFT)
     cleared | (bit << STM_SHIFT)
 }
 
-pub fn meta_castling_rights(meta: u256) -> u8 {
+pub fn meta_castling_rights(_ meta: u256) -> u8 {
     ((meta >> CASTLE_SHIFT) & CASTLE_MASK).downcast_truncate()
 }
 
-pub fn meta_set_castling_rights(meta: u256, rights: u8) -> u256 {
+pub fn meta_set_castling_rights(_ meta: u256, _ rights: u8) -> u256 {
     let cleared = meta & ~(CASTLE_MASK << CASTLE_SHIFT)
     cleared | (((rights as u256) & CASTLE_MASK) << CASTLE_SHIFT)
 }
 
-pub fn meta_ep_file(meta: u256) -> u8 {
+pub fn meta_ep_file(_ meta: u256) -> u8 {
     ((meta >> EP_SHIFT) & EP_MASK).downcast_truncate()
 }
 
-pub fn meta_set_ep_file(meta: u256, file: u8) -> u256 {
+pub fn meta_set_ep_file(_ meta: u256, _ file: u8) -> u256 {
     let cleared = meta & ~(EP_MASK << EP_SHIFT)
     cleared | (((file as u256) & EP_MASK) << EP_SHIFT)
 }
 
-pub fn meta_halfmove_clock(meta: u256) -> u16 {
+pub fn meta_halfmove_clock(_ meta: u256) -> u16 {
     ((meta >> HALF_SHIFT) & HALF_MASK).downcast_truncate()
 }
 
-pub fn meta_set_halfmove_clock(meta: u256, halfmove: u16) -> u256 {
+pub fn meta_set_halfmove_clock(_ meta: u256, _ halfmove: u16) -> u256 {
     let cleared = meta & ~(HALF_MASK << HALF_SHIFT)
     cleared | (((halfmove as u256) & HALF_MASK) << HALF_SHIFT)
 }
 
-pub fn meta_fullmove_number(meta: u256) -> u16 {
+pub fn meta_fullmove_number(_ meta: u256) -> u16 {
     ((meta >> FULL_SHIFT) & FULL_MASK).downcast_truncate()
 }
 
-pub fn meta_set_fullmove_number(meta: u256, fullmove: u16) -> u256 {
+pub fn meta_set_fullmove_number(_ meta: u256, _ fullmove: u16) -> u256 {
     let cleared = meta & ~(FULL_MASK << FULL_SHIFT)
     cleared | (((fullmove as u256) & FULL_MASK) << FULL_SHIFT)
 }
 
-pub fn meta_white_king_sq(meta: u256) -> u8 {
+pub fn meta_white_king_sq(_ meta: u256) -> u8 {
     ((meta >> WK_SHIFT) & KING_SQ_MASK).downcast_truncate()
 }
 
-pub fn meta_set_white_king_sq(meta: u256, sq: u8) -> u256 {
+pub fn meta_set_white_king_sq(_ meta: u256, _ sq: u8) -> u256 {
     let cleared = meta & ~(KING_SQ_MASK << WK_SHIFT)
     cleared | (((sq as u256) & KING_SQ_MASK) << WK_SHIFT)
 }
 
-pub fn meta_black_king_sq(meta: u256) -> u8 {
+pub fn meta_black_king_sq(_ meta: u256) -> u8 {
     ((meta >> BK_SHIFT) & KING_SQ_MASK).downcast_truncate()
 }
 
-pub fn meta_set_black_king_sq(meta: u256, sq: u8) -> u256 {
+pub fn meta_set_black_king_sq(_ meta: u256, _ sq: u8) -> u256 {
     let cleared = meta & ~(KING_SQ_MASK << BK_SHIFT)
     cleared | (((sq as u256) & KING_SQ_MASK) << BK_SHIFT)
 }

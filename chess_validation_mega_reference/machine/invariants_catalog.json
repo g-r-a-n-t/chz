@@ -1,0 +1,3090 @@
+{
+  "version": "2026-04-03",
+  "scope": "Orthodox chess with policy notes for Chess960-aware castling handling.",
+  "count": 111,
+  "invariants": [
+    {
+      "id": "REP-001",
+      "name": "side_to_move_defined",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "state.turn is either white or black.",
+      "why": "Active color is part of the state and repetition identity.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "after_null",
+        "serialize"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "orthodox",
+        "fen"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-002",
+      "name": "color_occupancies_disjoint",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "white_occupancy & black_occupancy == 0.",
+      "why": "No square can hold both colors.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "bitboard"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-003",
+      "name": "occupancy_union_matches_total",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "all_occupancy == (white_occupancy | black_occupancy).",
+      "why": "Internal occupancy masks must agree.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "bitboard"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-004",
+      "name": "piece_type_bitboards_disjoint",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "No square appears in more than one piece-type set.",
+      "why": "A square cannot simultaneously contain multiple piece types.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "bitboard"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-005",
+      "name": "board_array_matches_bitboards",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Mailbox/array view and bitboards encode the same board.",
+      "why": "Mixed representations drift easily after make/unmake bugs.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "bitboard",
+        "mailbox"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-006",
+      "name": "piece_lists_match_board",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Piece lists and piece-count tables match square contents exactly.",
+      "why": "Piece-list corruption is a classic move/unmove failure mode.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "piece_lists"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-007",
+      "name": "square_uniqueness",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Each occupied square contains exactly one piece record.",
+      "why": "Duplicate square ownership indicates structural corruption.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "board"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-008",
+      "name": "exactly_one_white_king",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "There is exactly one white king on the board.",
+      "why": "Standard chess requires one king per side.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "orthodox"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-009",
+      "name": "exactly_one_black_king",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "There is exactly one black king on the board.",
+      "why": "Standard chess requires one king per side.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "orthodox"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-010",
+      "name": "white_piece_budget",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "White has at most 16 men.",
+      "why": "A side cannot retain more than its original sixteen men.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "orthodox"
+      ],
+      "source_urls": [
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-011",
+      "name": "black_piece_budget",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Black has at most 16 men.",
+      "why": "A side cannot retain more than its original sixteen men.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "orthodox"
+      ],
+      "source_urls": [
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-012",
+      "name": "white_pawn_budget",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "White has at most 8 pawns.",
+      "why": "A side starts with eight pawns and promotions remove pawns.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "orthodox"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-013",
+      "name": "black_pawn_budget",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Black has at most 8 pawns.",
+      "why": "A side starts with eight pawns and promotions remove pawns.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "orthodox"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-014",
+      "name": "total_piece_budget",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Total occupied squares with pieces is at most 32.",
+      "why": "Orthodox chess has 32 physical men maximum.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "orthodox"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://arxiv.org/pdf/2112.09386"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-015",
+      "name": "no_pawns_on_backrank",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "No pawn occupies rank 1 or rank 8.",
+      "why": "A pawn that reaches the back rank must promote immediately.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "orthodox"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://arxiv.org/pdf/2112.09386"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-016",
+      "name": "castling_rights_mask_sane",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Castling-right bits are from the supported set only.",
+      "why": "Corrupted rights create false legal moves and false repetition keys.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "serialize"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-017",
+      "name": "castling_rights_structurally_consistent",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "If castling rights are present, the corresponding king and rook mapping is structurally valid for the chosen variant.",
+      "why": "Libraries and engines validate castling rights against board structure.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "castling",
+        "orthodox"
+      ],
+      "source_urls": [
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm"
+      ],
+      "implementation_notes": "In orthodox chess this usually means king on e1/e8 and rook on a/h; in Chess960 use your start-file mapping."
+    },
+    {
+      "id": "REP-018",
+      "name": "ep_square_shape_spec",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Under FEN-spec mode, EP square is absent or on rank 3/6 consistent with the external notation rules.",
+      "why": "The FEN spec defines EP as a target square field of the state.",
+      "stages": [
+        "parse_fen",
+        "serialize",
+        "canonicalize"
+      ],
+      "modes": [
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "policy",
+      "policy_tags": [
+        "ep",
+        "spec_fen"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm"
+      ],
+      "implementation_notes": "This is the external I/O policy, not necessarily the internal canonical form."
+    },
+    {
+      "id": "REP-019",
+      "name": "ep_square_shape_strict",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Under strict-internal mode, EP square is absent or also satisfies local capture preconditions.",
+      "why": "Stockfish sanitizes EP more aggressively than the original FEN spec.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "canonicalize"
+      ],
+      "modes": [
+        "FULL",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "policy",
+      "policy_tags": [
+        "ep",
+        "strict_ep"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": "Recommended internal canonicalization policy if you want a tighter state invariant."
+    },
+    {
+      "id": "REP-020",
+      "name": "halfmove_clock_nonnegative",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "halfmove_clock >= 0.",
+      "why": "The halfmove clock is a nonnegative FEN field.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "serialize"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "history"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-021",
+      "name": "fullmove_number_positive",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "fullmove_number >= 1.",
+      "why": "The fullmove number in FEN starts at 1 and increments after Black's move.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "serialize"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "history"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-022",
+      "name": "ply_counter_consistent",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "If a separate ply counter is stored, it is consistent with fullmove_number and side_to_move.",
+      "why": "Counter drift breaks PGN/FEN export and search bookkeeping.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "serialize"
+      ],
+      "modes": [
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "strict",
+      "policy_tags": [
+        "history"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-023",
+      "name": "zobrist_hash_matches_recompute",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Position hash equals a clean recomputation from board + turn + castling + EP.",
+      "why": "TT corruption and repetition bugs often surface here first.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check",
+        "search_root"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "hash"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-024",
+      "name": "pawn_hash_matches_recompute",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Pawn hash equals a clean recomputation from pawn locations and any side-dependent pawn features if used.",
+      "why": "Useful for engines with pawn hash tables.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "hash",
+        "evaluation"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-025",
+      "name": "material_key_matches_recompute",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Material key / material signature matches recomputation.",
+      "why": "Stockfish checks material consistency in pos_is_ok().",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "hash",
+        "evaluation"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-026",
+      "name": "attack_cache_matches_recompute",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Cached attack maps match recomputation from the board.",
+      "why": "Invalid attack caches create false checks and false legal moves.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "attack_cache"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-027",
+      "name": "checkers_cache_matches_recompute",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Cached checker set equals recomputation.",
+      "why": "Many engines cache 'checkers' or 'in_check' incrementally.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "attack_cache"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-028",
+      "name": "pinners_blockers_cache_matches_recompute",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Pinned-piece and blocker caches match a fresh computation.",
+      "why": "Pinned move legality is highly sensitive to stale caches.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "attack_cache"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-029",
+      "name": "eval_cache_matches_recompute",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "If incremental material/PSQT/eval caches exist, they match full recomputation in debug mode.",
+      "why": "This catches silent evaluation drift unrelated to rule legality.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "evaluation"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-030",
+      "name": "nnue_accumulator_matches_refresh",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "If NNUE or similar accumulators are incremental, a forced refresh matches the current accumulator.",
+      "why": "Search correctness depends on cache coherence even when move legality is correct.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "evaluation",
+        "nnue"
+      ],
+      "source_urls": [
+        "https://official-stockfish.github.io/docs/stockfish-wiki/UCI-%26-Commands.html"
+      ],
+      "implementation_notes": "Optional if the engine uses incremental neural accumulators."
+    },
+    {
+      "id": "REP-031",
+      "name": "move_stack_frame_integrity",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "Top undo frame is structurally complete whenever a move is pushed.",
+      "why": "Unmake correctness requires exact saved state.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "strict",
+      "policy_tags": [
+        "history",
+        "undo"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "REP-032",
+      "name": "repetition_stack_length_consistent",
+      "layer": "representation",
+      "subsystem": "representation",
+      "assertion": "The repetition-history stack length matches the move stack / ply count policy.",
+      "why": "Repetition logic depends on a faithful key history.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "search_root"
+      ],
+      "modes": [
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "strict",
+      "policy_tags": [
+        "history",
+        "repetition"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-001",
+      "name": "side_not_to_move_not_in_check",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "In a legal resulting position, the side that just moved is not left in check.",
+      "why": "FIDE legality forbids making a move that leaves your own king in check.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(attacks)",
+      "severity": "fatal",
+      "policy_tags": [
+        "legality"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-002",
+      "name": "kings_not_adjacent",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "The two kings do not attack each other from adjacent squares.",
+      "why": "Adjacent kings imply an illegal position.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "legality"
+      ],
+      "source_urls": [
+        "https://arxiv.org/pdf/2112.09386",
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-003",
+      "name": "checker_count_at_most_two",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "The checked side has at most two independent checking pieces.",
+      "why": "In orthodox chess, more than two simultaneous checkers is impossible.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(attacks)",
+      "severity": "strict",
+      "policy_tags": [
+        "legality"
+      ],
+      "source_urls": [
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-004",
+      "name": "opposite_check_rejected",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Reject states where the side not to move is in check.",
+      "why": "python-chess exposes this as OPPOSITE_CHECK and Stockfish rejects king-capturable states.",
+      "stages": [
+        "parse_fen",
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(attacks)",
+      "severity": "fatal",
+      "policy_tags": [
+        "legality"
+      ],
+      "source_urls": [
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://arxiv.org/pdf/2112.09386"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-005",
+      "name": "impossible_check_patterns_rejected",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Reject or warn on impossible check geometries that cannot arise from a legal last move.",
+      "why": "python-chess includes IMPOSSIBLE_CHECK and TOO_MANY_CHECKERS as import-time sanity checks.",
+      "stages": [
+        "parse_fen",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "legality",
+        "import"
+      ],
+      "source_urls": [
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-006",
+      "name": "legal_moves_are_pseudolegal",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Every move in the legal move list is also pseudo-legal under piece movement rules.",
+      "why": "A legal move generator should refine, not contradict, pseudo-legal generation.",
+      "stages": [
+        "after_movegen",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(moves)",
+      "severity": "strict",
+      "policy_tags": [
+        "movegen"
+      ],
+      "source_urls": [
+        "https://python-chess.readthedocs.io/en/latest/core.html",
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-007",
+      "name": "legal_filter_removes_self_check_only",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Pseudo-legal moves become legal exactly when they do not leave the mover's king in check.",
+      "why": "The difference between pseudo-legal and legal move sets should be explained by king safety.",
+      "stages": [
+        "after_movegen",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(moves * attacks)",
+      "severity": "strict",
+      "policy_tags": [
+        "movegen"
+      ],
+      "source_urls": [
+        "https://python-chess.readthedocs.io/en/latest/core.html",
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-008",
+      "name": "no_move_captures_king",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "No legal move captures a king.",
+      "why": "Checkmate ends the game; kings are never captured in legal chess.",
+      "stages": [
+        "after_movegen",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(moves)",
+      "severity": "fatal",
+      "policy_tags": [
+        "movegen"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-009",
+      "name": "king_move_destination_not_attacked",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Every legal king move lands on a square not attacked by the opponent.",
+      "why": "This is the core king-safety condition.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(moves * attacks)",
+      "severity": "fatal",
+      "policy_tags": [
+        "king_safety"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-010",
+      "name": "pinned_piece_moves_preserve_ray",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "A legal move by a pinned piece stays on the pin ray unless it captures the pinning piece in a legal way.",
+      "why": "Pinned-piece handling is a common movegen bug source.",
+      "stages": [
+        "after_movegen",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(moves * attacks)",
+      "severity": "strict",
+      "policy_tags": [
+        "pins"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-011",
+      "name": "castling_requires_right",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "A castling move is legal only if the relevant historical castling right is still present.",
+      "why": "Castling legality depends partly on history, not just geometry.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-012",
+      "name": "castling_path_empty",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "All squares between king and rook are empty for a legal castling move.",
+      "why": "FIDE requires no intervening pieces.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-013",
+      "name": "castling_squares_not_attacked",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "For a legal castling move, the king's start, transit, and destination squares are not under attack.",
+      "why": "FIDE castling rules explicitly require this.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(attacks)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-014",
+      "name": "castling_rook_king_destinations_correct",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "A castling move relocates king and rook to the correct final squares under the supported variant.",
+      "why": "Move application must match the rules exactly.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-015",
+      "name": "castling_forbidden_while_in_check",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Castling is not legal when the king starts the move in check.",
+      "why": "FIDE explicitly forbids castling out of check.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(attacks)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-016",
+      "name": "en_passant_requires_last_move_history",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "An en passant capture is legal only on the reply immediately following the opponent's double pawn push.",
+      "why": "This is a history-sensitive rule, not a geometric rule alone.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "en_passant"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-017",
+      "name": "en_passant_target_square_correct",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "A pseudo-legal en passant capture targets the current EP square and the captured pawn sits on the passed square.",
+      "why": "EP application bugs often remove the wrong pawn or square.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "en_passant"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-018",
+      "name": "en_passant_preserves_king_safety",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "An en passant move is legal only if removing both pawns does not expose the moving side's king.",
+      "why": "EP is the special move most likely to break incremental attack logic.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(attacks)",
+      "severity": "fatal",
+      "policy_tags": [
+        "en_passant"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-019",
+      "name": "promotion_from_last_rank_transition_only",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "A promotion occurs only when a pawn moves from its penultimate rank to the back rank.",
+      "why": "Promotion cannot happen from arbitrary squares.",
+      "stages": [
+        "after_make",
+        "after_movegen",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "promotion"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-020",
+      "name": "promotion_piece_set_restricted",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Promotion result is one of queen, rook, bishop, or knight.",
+      "why": "FIDE restricts promotion choices to these four pieces.",
+      "stages": [
+        "after_make",
+        "after_movegen",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "promotion"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-021",
+      "name": "promotion_replaces_pawn_immediately",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "After promotion, the pawn no longer exists on the destination square; the promoted piece does.",
+      "why": "Promotion is immediate and final on that move.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "promotion"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-022",
+      "name": "double_pawn_push_preconditions",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "A two-square pawn advance starts from the home rank, crosses an empty square, and lands on an empty square.",
+      "why": "Piece movement rules define this precisely.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "pawn_move"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-023",
+      "name": "pawn_move_geometry_correct",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Single pushes, captures, and promotions follow pawn geometry exactly for the side to move.",
+      "why": "Pawn bugs generate many downstream legality failures.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(moves)",
+      "severity": "fatal",
+      "policy_tags": [
+        "pawn_move"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-024",
+      "name": "slider_paths_unobstructed",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Bishop, rook, and queen moves traverse unobstructed rays.",
+      "why": "Ray bugs create phantom moves and missed attacks.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(moves * ray)",
+      "severity": "fatal",
+      "policy_tags": [
+        "movegen"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-025",
+      "name": "knight_move_geometry_correct",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Knight moves use L-shaped geometry and ignore interposing pieces.",
+      "why": "Knights are the main non-ray exception.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(moves)",
+      "severity": "fatal",
+      "policy_tags": [
+        "movegen"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-026",
+      "name": "king_move_geometry_correct",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Non-castling king moves are one square in any direction and obey occupancy/attack rules.",
+      "why": "Separates basic geometry from castling logic.",
+      "stages": [
+        "after_movegen",
+        "after_make",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(moves)",
+      "severity": "fatal",
+      "policy_tags": [
+        "movegen"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-027",
+      "name": "checkmate_definition_exact",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "If in check and with no legal moves, the state is checkmate.",
+      "why": "Terminal classification should match the Laws of Chess exactly.",
+      "stages": [
+        "after_movegen",
+        "search_root",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(moves)",
+      "severity": "strict",
+      "policy_tags": [
+        "terminal"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-028",
+      "name": "stalemate_definition_exact",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "If not in check and with no legal moves, the state is stalemate.",
+      "why": "Terminal classification should match the Laws of Chess exactly.",
+      "stages": [
+        "after_movegen",
+        "search_root",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(moves)",
+      "severity": "strict",
+      "policy_tags": [
+        "terminal"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-029",
+      "name": "dead_position_not_conflated_with_simple_material",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Do not equate 'dead position' with a simplistic insufficient-material heuristic; if using a heuristic, label it as such.",
+      "why": "FIDE's dead-position rule is semantic, not merely a material-count table.",
+      "stages": [
+        "search_root",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(varies)",
+      "severity": "policy",
+      "policy_tags": [
+        "terminal"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": "Use exact dead-position logic if you implement it; otherwise expose a weaker 'insufficient material heuristic' name."
+    },
+    {
+      "id": "LOC-030",
+      "name": "legal_move_count_matches_recompute",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "A fresh legal move recomputation yields the same count and set as the incremental generator.",
+      "why": "This is a strong deep-check invariant.",
+      "stages": [
+        "after_movegen",
+        "periodic_deep_check",
+        "perft"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(moves * attacks)",
+      "severity": "strict",
+      "policy_tags": [
+        "movegen"
+      ],
+      "source_urls": [
+        "https://www.chessprogramming.org/Perft",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-031",
+      "name": "attackers_to_consistent",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "attackers_to(square, side) matches a fresh attack generator or inverse move generator.",
+      "why": "Attack queries are used across check, SEE, pins, castling, and evaluation.",
+      "stages": [
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board * attacks)",
+      "severity": "strict",
+      "policy_tags": [
+        "attacks"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://python-chess.readthedocs.io/en/latest/core.html"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "LOC-032",
+      "name": "attacked_squares_stable_after_make_unmake",
+      "layer": "local_legality",
+      "subsystem": "local_legality",
+      "assertion": "Attack maps before a move equal attack maps after make+unmake.",
+      "why": "This catches incremental attack-cache drift.",
+      "stages": [
+        "after_unmake",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board * attacks)",
+      "severity": "strict",
+      "policy_tags": [
+        "attacks",
+        "undo"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-001",
+      "name": "castling_rights_monotone",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Castling rights never reappear once lost.",
+      "why": "Castling rights are historical entitlements, not dynamic geometric facts.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "serialize"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling",
+        "history"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-002",
+      "name": "king_move_clears_both_rights",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Moving a king clears both castling rights for that side.",
+      "why": "This follows directly from the castling rule.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling",
+        "history"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-003",
+      "name": "rook_home_move_clears_right",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Moving a rook from its original castling square clears the corresponding castling right.",
+      "why": "The relevant rook must not have moved previously.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling",
+        "history"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-004",
+      "name": "rook_home_capture_clears_right",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Capturing a rook on its original castling square clears that side's corresponding castling right if still present.",
+      "why": "Rights can be lost by rook disappearance as well as rook movement.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling",
+        "history"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-005",
+      "name": "castling_move_clears_side_rights",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Executing castling clears both castling rights for the moving side.",
+      "why": "After the king moves, castling is permanently lost.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "castling",
+        "history"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-006",
+      "name": "ep_square_set_per_policy",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "After a legal double pawn push, set the EP square according to the chosen policy (spec-FEN or strict-captureable).",
+      "why": "The specification and internal canonicalization policy may differ here.",
+      "stages": [
+        "after_make",
+        "serialize",
+        "canonicalize"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "policy",
+      "policy_tags": [
+        "en_passant",
+        "history"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": "Preserve external I/O fidelity even if your internal canonical state is stricter."
+    },
+    {
+      "id": "HIS-007",
+      "name": "ep_square_cleared_when_expired",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "EP availability disappears after one opponent reply if unused.",
+      "why": "FIDE says en passant is legal only on the immediately following move.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "en_passant",
+        "history"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-008",
+      "name": "ep_square_cleared_on_non_qualifying_move",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Any move that is not a fresh double pawn push leaves no EP target square afterward.",
+      "why": "A stale EP square creates false legal moves and wrong repetition keys.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "en_passant",
+        "history"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-009",
+      "name": "halfmove_reset_on_pawn_move",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Any pawn move resets the halfmove clock to zero.",
+      "why": "This is defined by FEN and the move-counting rules.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "history"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-010",
+      "name": "halfmove_reset_on_capture",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Any capture resets the halfmove clock to zero.",
+      "why": "This is defined by FEN and the move-counting rules.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "history"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-011",
+      "name": "halfmove_increment_otherwise",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "A non-pawn, non-capture move increments the halfmove clock by one.",
+      "why": "Halfmove maintenance drives 50/75-move logic.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "history"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-012",
+      "name": "fullmove_increment_after_black",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "fullmove_number increments after Black's move only.",
+      "why": "This is the FEN fullmove-number convention.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "history"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-013",
+      "name": "undo_frame_is_lossless",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Undo metadata stores enough information to restore board, turn, rights, EP, clocks, and hashes exactly.",
+      "why": "Exact unmake is the linchpin of search correctness.",
+      "stages": [
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "undo",
+        "history"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-014",
+      "name": "make_unmake_roundtrip_exact",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Applying a move and then unmaking it restores the pre-move state exactly, including hashes and counters.",
+      "why": "This is the most valuable transition invariant in engines.",
+      "stages": [
+        "after_unmake",
+        "periodic_deep_check",
+        "perft"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "undo",
+        "history"
+      ],
+      "source_urls": [
+        "https://www.chessprogramming.org/Perft",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-015",
+      "name": "rebuild_from_history_matches_state",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Replaying move history from the root yields the exact current state.",
+      "why": "This protects against long-range drift in incremental logic.",
+      "stages": [
+        "periodic_deep_check",
+        "search_root"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(history * moves)",
+      "severity": "strict",
+      "policy_tags": [
+        "history"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-016",
+      "name": "null_move_toggles_turn_and_clears_ep",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "If null move pruning is supported, null move flips side to move, clears EP, and updates clocks without mutating pieces or rights.",
+      "why": "Null move is engine-internal but still needs invariant coverage.",
+      "stages": [
+        "after_null",
+        "after_unmake"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(1)",
+      "severity": "strict",
+      "policy_tags": [
+        "search",
+        "null_move"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": "Only relevant if the engine implements null moves."
+    },
+    {
+      "id": "HIS-017",
+      "name": "repetition_key_includes_relevant_state",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Position identity for repetition includes piece placement, side to move, castling rights, and relevant EP availability.",
+      "why": "FIDE treats positions as different if possible moves differ because of castling or EP.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "search_root"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "fatal",
+      "policy_tags": [
+        "repetition",
+        "history"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-018",
+      "name": "repetition_history_consistent",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "The repetition table / key multiset matches the actual stack of visited positions.",
+      "why": "Threefold/fivefold draw logic depends on exact history accounting.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "search_root"
+      ],
+      "modes": [
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(history)",
+      "severity": "strict",
+      "policy_tags": [
+        "repetition",
+        "history"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-019",
+      "name": "threefold_and_fivefold_derived_from_history",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Threefold-claim and fivefold-automatic draw states derive from actual repeated position keys, not from ad hoc heuristics.",
+      "why": "These are history-sensitive, not purely local board properties.",
+      "stages": [
+        "search_root",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(history)",
+      "severity": "strict",
+      "policy_tags": [
+        "repetition",
+        "terminal"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-020",
+      "name": "fifty_and_seventyfive_move_rules_from_clock",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "50-move claimability and 75-move automatic draw logic derive from the halfmove clock and applicable exceptions.",
+      "why": "These rules are defined at the game-state level.",
+      "stages": [
+        "search_root",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(1)",
+      "severity": "strict",
+      "policy_tags": [
+        "history",
+        "terminal"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-021",
+      "name": "fen_roundtrip_exact_under_io_policy",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "serialize_fen(parse_fen(fen)) preserves the intended external FEN policy or normalizes only as documented.",
+      "why": "Roundtrip correctness matters for external interfaces and debugging.",
+      "stages": [
+        "parse_fen",
+        "serialize"
+      ],
+      "modes": [
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "policy",
+      "policy_tags": [
+        "fen",
+        "io"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-022",
+      "name": "pgn_san_roundtrip_when_supported",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "If SAN/PGN is implemented, parsing emitted SAN from the same state reproduces the original move.",
+      "why": "Notation code is another high-value surface for rule bugs.",
+      "stages": [
+        "serialize",
+        "after_make",
+        "after_unmake"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(moves)",
+      "severity": "strict",
+      "policy_tags": [
+        "io",
+        "notation"
+      ],
+      "source_urls": [
+        "https://handbook.fide.com/chapter/E012023",
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-023",
+      "name": "root_state_preserved_across_search",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Search must not mutate the root position after completion, including clocks, stack, and hash.",
+      "why": "Search bugs can leak mutations via TT, PV, or null-move paths.",
+      "stages": [
+        "search_root"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "search",
+        "undo"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-024",
+      "name": "principal_variation_replay_legal",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "Moves reported in the PV are legal when replayed from the root under the engine's own rules.",
+      "why": "This validates search output against the rule layer.",
+      "stages": [
+        "search_root",
+        "oracle"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(pv_length * attacks)",
+      "severity": "strict",
+      "policy_tags": [
+        "search",
+        "io"
+      ],
+      "source_urls": [
+        "https://official-stockfish.github.io/docs/stockfish-wiki/UCI-%26-Commands.html"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "HIS-025",
+      "name": "tt_move_legal_in_position",
+      "layer": "history",
+      "subsystem": "history",
+      "assertion": "A transposition-table move retrieved for a position is legal or at least pseudo-legal under the current state policy.",
+      "why": "Illegal TT moves indicate key collisions or state corruption.",
+      "stages": [
+        "search_root",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(moves)",
+      "severity": "strict",
+      "policy_tags": [
+        "search",
+        "tt"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "RCH-001",
+      "name": "promotion_budget_feasible_per_side",
+      "layer": "reachability",
+      "subsystem": "reachability",
+      "assertion": "The number of extra queens/rooks/bishops/knights on a side is explainable by missing pawns via promotion.",
+      "why": "Material configurations can be locally plausible but globally unreachable.",
+      "stages": [
+        "parse_fen",
+        "canonicalize"
+      ],
+      "modes": [
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "heuristic",
+      "policy_tags": [
+        "reachability",
+        "import"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://arxiv.org/pdf/2112.09386"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "RCH-002",
+      "name": "global_promotion_budget_feasible",
+      "layer": "reachability",
+      "subsystem": "reachability",
+      "assertion": "Combined extra material across both sides does not exceed the total number of promotable pawns that must have disappeared.",
+      "why": "This is a stronger global promotion sanity check.",
+      "stages": [
+        "parse_fen",
+        "canonicalize"
+      ],
+      "modes": [
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "heuristic",
+      "policy_tags": [
+        "reachability",
+        "import"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+        "https://arxiv.org/pdf/2112.09386"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "RCH-003",
+      "name": "pawn_capture_budget_feasible",
+      "layer": "reachability",
+      "subsystem": "reachability",
+      "assertion": "Pawn-file displacement and survivor counts do not require more captures than are available.",
+      "why": "Retrograde reasoning often starts with pawn capture budgets.",
+      "stages": [
+        "parse_fen",
+        "canonicalize"
+      ],
+      "modes": [
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "heuristic",
+      "policy_tags": [
+        "reachability",
+        "import"
+      ],
+      "source_urls": [
+        "https://arxiv.org/pdf/2112.09386"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "RCH-004",
+      "name": "pawn_origin_feasible",
+      "layer": "reachability",
+      "subsystem": "reachability",
+      "assertion": "Each pawn arrangement is plausibly derivable from home files under capture constraints; obviously impossible origins are flagged.",
+      "why": "Many unreachable positions hide in pawn structure, not in piece movement.",
+      "stages": [
+        "parse_fen",
+        "canonicalize"
+      ],
+      "modes": [
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board^2)",
+      "severity": "heuristic",
+      "policy_tags": [
+        "reachability",
+        "import"
+      ],
+      "source_urls": [
+        "https://arxiv.org/pdf/2112.09386"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "RCH-005",
+      "name": "bishop_color_complex_feasible",
+      "layer": "reachability",
+      "subsystem": "reachability",
+      "assertion": "Bishop counts and square-color occupancy are plausible under promotion accounting.",
+      "why": "Bishop color-complex arguments are a standard retrograde tool.",
+      "stages": [
+        "parse_fen",
+        "canonicalize"
+      ],
+      "modes": [
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "heuristic",
+      "policy_tags": [
+        "reachability",
+        "import"
+      ],
+      "source_urls": [
+        "https://arxiv.org/pdf/2112.09386"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "RCH-006",
+      "name": "rook_knight_queen_excess_explained",
+      "layer": "reachability",
+      "subsystem": "reachability",
+      "assertion": "Surplus rooks, knights, or queens imply corresponding promoted pawns and capture history budgets.",
+      "why": "This turns raw material counts into a stronger reachability filter.",
+      "stages": [
+        "parse_fen",
+        "canonicalize"
+      ],
+      "modes": [
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "heuristic",
+      "policy_tags": [
+        "reachability",
+        "import"
+      ],
+      "source_urls": [
+        "https://arxiv.org/pdf/2112.09386",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "RCH-007",
+      "name": "impossible_checker_geometry_warned",
+      "layer": "reachability",
+      "subsystem": "reachability",
+      "assertion": "Imported positions with checker constellations that cannot arise from any legal last move are rejected or warned.",
+      "why": "python-chess exposes impossible-check style statuses for this reason.",
+      "stages": [
+        "parse_fen"
+      ],
+      "modes": [
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(board)",
+      "severity": "heuristic",
+      "policy_tags": [
+        "reachability",
+        "import"
+      ],
+      "source_urls": [
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "RCH-008",
+      "name": "imported_position_validity_level_explicit",
+      "layer": "reachability",
+      "subsystem": "reachability",
+      "assertion": "Imported FENs are classified as basic-valid, heuristic-reachability-pass/fail, or trusted-generated; do not collapse these categories.",
+      "why": "The research literature distinguishes local validity from true reachability.",
+      "stages": [
+        "parse_fen",
+        "canonicalize"
+      ],
+      "modes": [
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "policy",
+      "policy_tags": [
+        "import",
+        "api"
+      ],
+      "source_urls": [
+        "https://python-chess.readthedocs.io/en/latest/core.html",
+        "https://arxiv.org/pdf/2112.09386",
+        "https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.ISAAC.2020.17"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "RCH-009",
+      "name": "reachable_by_construction_flag",
+      "layer": "reachability",
+      "subsystem": "reachability",
+      "assertion": "States produced from the initial position by your own legal move engine are tagged as trusted-by-construction.",
+      "why": "This is the cleanest way to avoid re-solving reachability on internal states.",
+      "stages": [
+        "after_make",
+        "after_unmake",
+        "search_root"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT"
+      ],
+      "cost": "O(1)",
+      "severity": "policy",
+      "policy_tags": [
+        "import",
+        "api"
+      ],
+      "source_urls": [
+        "https://python-chess.readthedocs.io/en/latest/core.html",
+        "https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.ISAAC.2020.17"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "RCH-010",
+      "name": "proof_game_hook_optional",
+      "layer": "reachability",
+      "subsystem": "reachability",
+      "assertion": "Provide a hook for an optional proof-game / retrograde module if arbitrary external legal-position guarantees are required.",
+      "why": "Reachability is substantially harder than local validation.",
+      "stages": [
+        "parse_fen",
+        "oracle"
+      ],
+      "modes": [
+        "ORACLE"
+      ],
+      "cost": "O(expensive)",
+      "severity": "policy",
+      "policy_tags": [
+        "reachability",
+        "import"
+      ],
+      "source_urls": [
+        "https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.ISAAC.2020.17",
+        "https://arxiv.org/pdf/2112.09386"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "MET-001",
+      "name": "clone_equality",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "Cloning a state yields an equivalent state in all semantically relevant fields.",
+      "why": "Basic object-copy correctness supports every other test harness.",
+      "stages": [
+        "serialize",
+        "search_root",
+        "periodic_deep_check"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "metamorphic",
+        "consistency"
+      ],
+      "source_urls": [
+        "https://python-chess.readthedocs.io/en/latest/core.html"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "MET-002",
+      "name": "fen_roundtrip_normalized_equality",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "parse(serialize(state)) == normalize(state) under the declared EP/castling I/O policy.",
+      "why": "Serialization roundtrips are a cheap metamorphic test.",
+      "stages": [
+        "serialize",
+        "parse_fen"
+      ],
+      "modes": [
+        "LIGHT",
+        "FULL",
+        "IMPORT_BASIC",
+        "IMPORT_STRICT",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "strict",
+      "policy_tags": [
+        "metamorphic",
+        "consistency"
+      ],
+      "source_urls": [
+        "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+        "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "MET-003",
+      "name": "vertical_mirror_color_swap_perft",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "After vertical board mirror plus color swap (and corresponding turn/castling/EP remap), perft at depth d is unchanged.",
+      "why": "The rule layer should be symmetric under color-swapping mirror transforms when state metadata is transformed consistently.",
+      "stages": [
+        "perft",
+        "oracle"
+      ],
+      "modes": [
+        "ORACLE"
+      ],
+      "cost": "O(perft)",
+      "severity": "oracle",
+      "policy_tags": [
+        "metamorphic",
+        "perft"
+      ],
+      "source_urls": [
+        "https://python-chess.readthedocs.io/en/latest/core.html",
+        "https://www.chessprogramming.org/Perft_Results"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "MET-004",
+      "name": "horizontal_reflection_perft",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "After horizontal reflection (a-file <-> h-file) with castling/EP file remapping, perft at depth d is unchanged.",
+      "why": "Orthodox chess rules are file-symmetric when state metadata is transformed consistently.",
+      "stages": [
+        "perft",
+        "oracle"
+      ],
+      "modes": [
+        "ORACLE"
+      ],
+      "cost": "O(perft)",
+      "severity": "oracle",
+      "policy_tags": [
+        "metamorphic",
+        "perft"
+      ],
+      "source_urls": [
+        "https://www.chessprogramming.org/Perft_Results"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "MET-005",
+      "name": "make_unmake_involution",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "state == unmake(make(state, move)) for every legal move.",
+      "why": "This is the canonical state-transition metamorphic relation for engines.",
+      "stages": [
+        "after_unmake",
+        "perft",
+        "oracle"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "metamorphic",
+        "undo"
+      ],
+      "source_urls": [
+        "https://www.chessprogramming.org/Perft",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "MET-006",
+      "name": "move_order_independence_of_rule_layer",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "Sorted legal move sets are invariant under any internal move ordering changes.",
+      "why": "Search may depend on order, but rule correctness must not.",
+      "stages": [
+        "after_movegen",
+        "oracle"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(moves log moves)",
+      "severity": "strict",
+      "policy_tags": [
+        "metamorphic",
+        "movegen"
+      ],
+      "source_urls": [
+        "https://www.sciencedirect.com/science/article/abs/pii/S0950584925000187"
+      ],
+      "implementation_notes": "Apply to the rule layer. Do not assume evaluation or search scores are identical at all depths."
+    },
+    {
+      "id": "MET-007",
+      "name": "search_does_not_mutate_state",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "A pure search call leaves the input state unchanged.",
+      "why": "This is a higher-level metamorphic invariant around search entry/exit.",
+      "stages": [
+        "search_root"
+      ],
+      "modes": [
+        "FULL",
+        "ORACLE"
+      ],
+      "cost": "O(board)",
+      "severity": "fatal",
+      "policy_tags": [
+        "metamorphic",
+        "search"
+      ],
+      "source_urls": [
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "MET-008",
+      "name": "color_swap_eval_sign",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "For an evaluation function expressed from one fixed perspective, color-swapping a position should flip the sign under a documented convention.",
+      "why": "Useful for evaluation sanity checks, but not a strict rule oracle.",
+      "stages": [
+        "oracle"
+      ],
+      "modes": [
+        "ORACLE"
+      ],
+      "cost": "O(eval)",
+      "severity": "heuristic",
+      "policy_tags": [
+        "metamorphic",
+        "evaluation"
+      ],
+      "source_urls": [
+        "https://www.sciencedirect.com/science/article/pii/S0950584923001179",
+        "https://www.sciencedirect.com/science/article/abs/pii/S0950584925000187"
+      ],
+      "implementation_notes": "Use only for evaluation testing, not for move legality."
+    },
+    {
+      "id": "MET-009",
+      "name": "tablebase_wdl_matches_oracle",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "On Syzygy-eligible positions, WDL/DTZ results match the exact tablebase oracle.",
+      "why": "Tablebases are the strongest exact oracles available for many endings.",
+      "stages": [
+        "oracle"
+      ],
+      "modes": [
+        "ORACLE"
+      ],
+      "cost": "O(tablebase_probe)",
+      "severity": "oracle",
+      "policy_tags": [
+        "oracle",
+        "tablebase"
+      ],
+      "source_urls": [
+        "https://python-chess.readthedocs.io/en/stable/syzygy.html"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "MET-010",
+      "name": "reference_engine_legal_moves_match",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "On random reachable positions, legal move sets match a trusted reference implementation such as python-chess or a reference engine wrapper.",
+      "why": "Differential testing is one of the highest-value complements to invariants.",
+      "stages": [
+        "differential",
+        "oracle"
+      ],
+      "modes": [
+        "ORACLE"
+      ],
+      "cost": "O(reference_movegen)",
+      "severity": "oracle",
+      "policy_tags": [
+        "oracle",
+        "differential"
+      ],
+      "source_urls": [
+        "https://python-chess.readthedocs.io/en/latest/core.html",
+        "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "MET-011",
+      "name": "reference_engine_terminal_flags_match",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "On random reachable positions, in-check/checkmate/stalemate/EP/castling availability agree with the reference implementation under the same policy.",
+      "why": "Terminal-state and history bugs are common and easy to catch this way.",
+      "stages": [
+        "differential",
+        "oracle"
+      ],
+      "modes": [
+        "ORACLE"
+      ],
+      "cost": "O(reference_movegen)",
+      "severity": "oracle",
+      "policy_tags": [
+        "oracle",
+        "differential"
+      ],
+      "source_urls": [
+        "https://python-chess.readthedocs.io/en/latest/core.html",
+        "https://handbook.fide.com/chapter/E012023"
+      ],
+      "implementation_notes": ""
+    },
+    {
+      "id": "MET-012",
+      "name": "perft_reference_counts_match",
+      "layer": "metamorphic",
+      "subsystem": "metamorphic",
+      "assertion": "Perft counts match the standard corpus on the included reference positions and depths.",
+      "why": "Perft is the classic debugging oracle for move generation and make/unmake.",
+      "stages": [
+        "perft",
+        "oracle"
+      ],
+      "modes": [
+        "ORACLE"
+      ],
+      "cost": "O(perft)",
+      "severity": "oracle",
+      "policy_tags": [
+        "oracle",
+        "perft"
+      ],
+      "source_urls": [
+        "https://www.chessprogramming.org/Perft",
+        "https://www.chessprogramming.org/Perft_Results",
+        "https://official-stockfish.github.io/docs/stockfish-wiki/UCI-%26-Commands.html"
+      ],
+      "implementation_notes": ""
+    }
+  ]
+}

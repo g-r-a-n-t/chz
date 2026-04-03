@@ -1,0 +1,188 @@
+use core::num::IntDowncast
+use std::abi::sol
+use std::evm::ops
+
+use ingot::{
+    canonical_ep_file,
+    clear_piece,
+    meta_set_ep_file,
+    meta_set_fullmove_number,
+    meta_set_halfmove_clock,
+    meta_set_side_to_move,
+    move_piece,
+    piece_at,
+    repetition_hash,
+    set_piece,
+    sq,
+    EP_NONE,
+    PIECE_BP,
+    PIECE_WP,
+}
+
+// Solidity panic selector: keccak256("Panic(uint256)")[0:4]
+const PANIC_SELECTOR_WORD: u256 = 0x4e487b71 << 224
+const PANIC_ASSERTION: u256 = 0x01
+
+fn panic(_ code: u256) -> ! {
+    // Encode `Panic(uint256)` as `selector || uint256(code)` and revert.
+    ops::mstore(0, PANIC_SELECTOR_WORD)
+    ops::mstore(4, code)
+    ops::revert(0, 36)
+}
+
+fn panic_assert(_ ok: bool) {
+    if !ok {
+        panic(PANIC_ASSERTION)
+    }
+}
+
+fn prove_canonical_ep_no_adj_pawn_for_file_stm(board_word: u256, meta_word: u256, ep_file: u8, stm_white: bool) {
+    let meta2 = meta_set_side_to_move(meta_set_ep_file(meta_word, ep_file), stm_white)
+    let from_rank: u8 = if stm_white { 4 } else { 3 }
+
+    let mut has_candidate = false
+
+    if ep_file > 0 && !has_candidate {
+        let left_sq = sq(ep_file - 1, from_rank)
+        let p = piece_at(board_word, left_sq)
+        if stm_white {
+            if p == PIECE_WP { has_candidate = true }
+        } else {
+            if p == PIECE_BP { has_candidate = true }
+        }
+    }
+
+    if ep_file < 7 && !has_candidate {
+        let right_sq = sq(ep_file + 1, from_rank)
+        let p2 = piece_at(board_word, right_sq)
+        if stm_white {
+            if p2 == PIECE_WP { has_candidate = true }
+        } else {
+            if p2 == PIECE_BP { has_candidate = true }
+        }
+    }
+
+    if !has_candidate {
+        panic_assert(canonical_ep_file(board_word, meta2) == EP_NONE)
+    }
+}
+
+msg ChzProofsMsg {
+    #[selector = sol("provePieceAtSetPiece(uint256,uint256,uint256)")]
+    ProvePieceAtSetPiece { board_word: u256, sq_word: u256, piece_word: u256 } -> bool,
+
+    #[selector = sol("provePieceAtClearPiece(uint256,uint256)")]
+    ProvePieceAtClearPiece { board_word: u256, sq_word: u256 } -> bool,
+
+    #[selector = sol("proveMovePieceEquiv(uint256,uint256,uint256)")]
+    ProveMovePieceEquiv { board_word: u256, from_word: u256, to_word: u256 } -> bool,
+
+    #[selector = sol("proveSetPiecePreservesOtherSquare(uint256,uint256,uint256,uint256)")]
+    ProveSetPiecePreservesOtherSquare { board_word: u256, sq_word: u256, other_word: u256, piece_word: u256 } -> bool,
+
+    #[selector = sol("proveCanonicalEpNoAdjPawn(uint256,uint256)")]
+    ProveCanonicalEpNoAdjPawn { board_word: u256, meta_word: u256 } -> bool,
+
+    #[selector = sol("proveRepetitionHashIgnoresHalfFullNoEp(uint256,uint256,uint256,uint256)")]
+    ProveRepetitionHashIgnoresHalfFullNoEp { board_word: u256, meta_word: u256, half_word: u256, full_word: u256 } -> bool,
+}
+
+/// Small, proof-friendly entrypoints for `hevm symbolic`.
+///
+/// These are intended to validate invariants about the packed nibbleboard helpers
+/// without pulling in the full chess rules.
+pub contract ChzProofs {
+    recv ChzProofsMsg {
+        ProvePieceAtSetPiece { board_word, sq_word, piece_word } -> bool {
+            if sq_word >= 64 {
+                return true
+            }
+
+            let sq: u8 = sq_word.downcast_truncate()
+            let piece: u8 = (piece_word & 0xF).downcast_truncate()
+
+            let board2 = set_piece(board_word, sq, piece)
+            panic_assert(piece_at(board2, sq) == piece)
+            true
+        }
+
+        ProvePieceAtClearPiece { board_word, sq_word } -> bool {
+            if sq_word >= 64 {
+                return true
+            }
+
+            let sq: u8 = sq_word.downcast_truncate()
+            let board2 = clear_piece(board_word, sq)
+            panic_assert(piece_at(board2, sq) == 0)
+            true
+        }
+
+        ProveMovePieceEquiv { board_word, from_word, to_word } -> bool {
+            if from_word >= 64 || to_word >= 64 {
+                return true
+            }
+
+            let from_sq: u8 = from_word.downcast_truncate()
+            let to_sq: u8 = to_word.downcast_truncate()
+
+            let moved = move_piece(board_word, from_sq, to_sq)
+
+            let p = piece_at(board_word, from_sq)
+            let expected = set_piece(clear_piece(board_word, from_sq), to_sq, p)
+
+            panic_assert(moved == expected)
+            true
+        }
+
+        ProveSetPiecePreservesOtherSquare { board_word, sq_word, other_word, piece_word } -> bool {
+            if sq_word >= 64 || other_word >= 64 {
+                return true
+            }
+
+            let sq: u8 = sq_word.downcast_truncate()
+            let other_sq: u8 = other_word.downcast_truncate()
+            if sq == other_sq {
+                return true
+            }
+
+            let piece: u8 = (piece_word & 0xF).downcast_truncate()
+            let before_other = piece_at(board_word, other_sq)
+            let board2 = set_piece(board_word, sq, piece)
+            panic_assert(piece_at(board2, other_sq) == before_other)
+            true
+        }
+
+        ProveCanonicalEpNoAdjPawn { board_word, meta_word } -> bool {
+            // Prove the property for each EP file (0..7) and each side-to-move.
+            // This makes the `sq`/`piece_at` shifts constant and tractable for hevm symbolic.
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 0, true)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 0, false)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 1, true)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 1, false)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 2, true)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 2, false)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 3, true)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 3, false)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 4, true)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 4, false)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 5, true)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 5, false)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 6, true)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 6, false)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 7, true)
+            prove_canonical_ep_no_adj_pawn_for_file_stm(board_word, meta_word, 7, false)
+
+            true
+        }
+
+        ProveRepetitionHashIgnoresHalfFullNoEp { board_word, meta_word, half_word, full_word } -> bool {
+            let half: u16 = half_word.downcast_truncate()
+            let full: u16 = full_word.downcast_truncate()
+
+            let meta0 = meta_set_ep_file(meta_word, EP_NONE)
+            let meta2 = meta_set_fullmove_number(meta_set_halfmove_clock(meta0, half), full)
+            panic_assert(repetition_hash(board_word, meta2) == repetition_hash(board_word, meta0))
+            true
+        }
+    }
+}

@@ -1,0 +1,160 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "white",
+        "type": "address"
+      },
+      {
+        "name": "black",
+        "type": "address"
+      },
+      {
+        "name": "wager",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "submitMove",
+    "inputs": [
+      {
+        "name": "mv",
+        "type": "uint32"
+      },
+      {
+        "name": "claim_flags",
+        "type": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claimDrawNow",
+    "inputs": [
+      {
+        "name": "reason",
+        "type": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "resign",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "withdrawTo",
+    "inputs": [
+      {
+        "name": "to",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "MatchCreated",
+    "inputs": [
+      {
+        "name": "white",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "black",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "wager",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "initial_hash",
+        "type": "uint256",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "MoveAccepted",
+    "inputs": [
+      {
+        "name": "mv",
+        "type": "uint32",
+        "indexed": false
+      },
+      {
+        "name": "pos_hash",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "indexed": false
+      },
+      {
+        "name": "end_reason",
+        "type": "uint8",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "Withdrawal",
+    "inputs": [
+      {
+        "name": "player",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "indexed": false
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false
+      }
+    ]
+  }
+]

@@ -1,0 +1,26 @@
+use core::num::IntDowncast
+use ingot::Move
+
+// Compact move encoding:
+// - bits 0..5   from square
+// - bits 6..11  to square
+// - bits 12..14 promotion kind (0 none, 1 N, 2 B, 3 R, 4 Q)
+pub fn encode_move(from_sq: u8, to_sq: u8, promo: u8) -> Move {
+    (from_sq as u32) | ((to_sq as u32) << 6) | ((promo as u32) << 12)
+}
+
+pub fn decode_move(mv: Move) -> (u8, u8, u8) {
+    let from_sq: u8 = (mv & 0x3F).downcast_truncate()
+    let to_sq: u8 = ((mv >> 6) & 0x3F).downcast_truncate()
+    let promo: u8 = ((mv >> 12) & 0x7).downcast_truncate()
+    (from_sq, to_sq, promo)
+}
+
+#[test]
+fn test_encode_decode_roundtrip() {
+    let mv = encode_move(from_sq: 12, to_sq: 28, promo: 4)
+    let (from_sq, to_sq, promo) = decode_move(mv)
+    assert(from_sq == 12)
+    assert(to_sq == 28)
+    assert(promo == 4)
+}

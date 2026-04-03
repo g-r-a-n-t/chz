@@ -1,0 +1,83 @@
+{
+  "version": "2026-04-03",
+  "sources": [
+    {
+      "id": "SRC-001",
+      "title": "FIDE Laws of Chess (effective 1 January 2023)",
+      "url": "https://handbook.fide.com/chapter/E012023",
+      "why_it_matters": "Primary source for move legality, castling, en passant, repetition, checkmate, stalemate, dead position, and 75-move/fivefold rules."
+    },
+    {
+      "id": "SRC-002",
+      "title": "Portable Game Notation Specification and Implementation Guide",
+      "url": "https://www.saremba.de/chessgml/standards/pgn/pgn-complete.htm",
+      "why_it_matters": "Canonical specification for FEN/PGN field semantics: active color, castling availability, EP target square, halfmove clock, and fullmove number."
+    },
+    {
+      "id": "SRC-003",
+      "title": "python-chess core documentation",
+      "url": "https://python-chess.readthedocs.io/en/latest/core.html",
+      "why_it_matters": "Clear reference implementation documentation for legal vs pseudo-legal moves, board validity, mirror transforms, and API semantics."
+    },
+    {
+      "id": "SRC-004",
+      "title": "python-chess source (status()/is_valid())",
+      "url": "https://github.com/niklasf/python-chess/blob/master/chess/__init__.py",
+      "why_it_matters": "Concrete import-time status taxonomy: bad castling rights, invalid EP square, opposite check, too many checkers, impossible check, and more."
+    },
+    {
+      "id": "SRC-005",
+      "title": "Stockfish position.cpp",
+      "url": "https://raw.githubusercontent.com/official-stockfish/Stockfish/master/src/position.cpp",
+      "why_it_matters": "Production-grade reference for internal state validation, EP sanitization, castling-right consistency, hash recomputation, and legal move edge cases."
+    },
+    {
+      "id": "SRC-006",
+      "title": "Stockfish Docs: UCI & Commands",
+      "url": "https://official-stockfish.github.io/docs/stockfish-wiki/UCI-%26-Commands.html",
+      "why_it_matters": "Official divide/perft example and operational guidance useful for test harnesses."
+    },
+    {
+      "id": "SRC-007",
+      "title": "Chessprogramming Wiki: Perft",
+      "url": "https://www.chessprogramming.org/Perft",
+      "why_it_matters": "Explains why perft/divide is the standard debugging oracle for move generation and make/unmake."
+    },
+    {
+      "id": "SRC-008",
+      "title": "Chessprogramming Wiki: Perft Results",
+      "url": "https://www.chessprogramming.org/Perft_Results",
+      "why_it_matters": "Provides standard reference positions and node counts used across engine debugging."
+    },
+    {
+      "id": "SRC-009",
+      "title": "Daniel Gourion, An upper bound for the number of chess diagrams without promotion",
+      "url": "https://arxiv.org/pdf/2112.09386",
+      "why_it_matters": "Useful for the legal-diagram/reachability distinction and for retrograde-style pawn/promotion reasoning."
+    },
+    {
+      "id": "SRC-010",
+      "title": "Brunner et al., Complexity of Retrograde and Helpmate Chess Problems",
+      "url": "https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.ISAAC.2020.17",
+      "why_it_matters": "Puts formal weight behind the claim that reachability is a genuinely harder problem than local move legality."
+    },
+    {
+      "id": "SRC-011",
+      "title": "M\u00e9ndez et al., Metamorphic testing of chess engines",
+      "url": "https://www.sciencedirect.com/science/article/pii/S0950584923001179",
+      "why_it_matters": "Introduces metamorphic relations as a practical testing aid in the oracle-poor parts of engine validation."
+    },
+    {
+      "id": "SRC-012",
+      "title": "Martin et al., Re-evaluating metamorphic testing of chess engines: A replication study",
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0950584925000187",
+      "why_it_matters": "Important caution: metamorphic evaluation discrepancies can come from implementation details rather than true bugs."
+    },
+    {
+      "id": "SRC-013",
+      "title": "python-chess Syzygy endgame tablebase probing",
+      "url": "https://python-chess.readthedocs.io/en/stable/syzygy.html",
+      "why_it_matters": "Exact WDL/DTZ oracle for many small endgames, with the important caveat that castling-right positions are excluded."
+    }
+  ]
+}

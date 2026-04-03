@@ -1,0 +1,92 @@
+{
+  "version": "2026-04-03",
+  "relations": [
+    {
+      "id": "MR-001",
+      "name": "Fen roundtrip",
+      "transform": "serialize_fen(parse_fen(fen))",
+      "expected_relation": "Equal under the chosen external I/O policy, or equal after documented normalization.",
+      "best_for": [
+        "parser",
+        "serializer",
+        "import pipeline"
+      ]
+    },
+    {
+      "id": "MR-002",
+      "name": "Clone equality",
+      "transform": "clone(position)",
+      "expected_relation": "All semantically relevant state fields are identical.",
+      "best_for": [
+        "object model",
+        "search root protection"
+      ]
+    },
+    {
+      "id": "MR-003",
+      "name": "Make/unmake involution",
+      "transform": "unmake(make(position, move))",
+      "expected_relation": "Restores the exact pre-move state.",
+      "best_for": [
+        "move application",
+        "undo stack",
+        "incremental caches"
+      ]
+    },
+    {
+      "id": "MR-004",
+      "name": "Vertical mirror + color swap",
+      "transform": "mirror board vertically, swap colors, swap side-to-move, castling rights, EP square",
+      "expected_relation": "Perft is unchanged at depth d; evaluation sign should flip under a documented convention.",
+      "best_for": [
+        "rule symmetry",
+        "evaluation sanity"
+      ]
+    },
+    {
+      "id": "MR-005",
+      "name": "Horizontal reflection",
+      "transform": "reflect files a<->h and remap castling/EP files accordingly",
+      "expected_relation": "Perft is unchanged at depth d.",
+      "best_for": [
+        "file symmetry",
+        "castling file handling"
+      ]
+    },
+    {
+      "id": "MR-006",
+      "name": "Search non-mutation",
+      "transform": "run search(position) then compare root state",
+      "expected_relation": "State is unchanged.",
+      "best_for": [
+        "search integration",
+        "TT",
+        "null-move handling"
+      ]
+    },
+    {
+      "id": "MR-007",
+      "name": "Reference move-set agreement",
+      "transform": "compare sorted legal move sets against python-chess or another trusted reference on reachable positions",
+      "expected_relation": "Sets are identical under the same policy.",
+      "best_for": [
+        "differential testing",
+        "move generator validation"
+      ]
+    },
+    {
+      "id": "MR-008",
+      "name": "Syzygy endgame agreement",
+      "transform": "probe WDL/DTZ on eligible positions",
+      "expected_relation": "Engine oracle layer matches tablebase result.",
+      "best_for": [
+        "endgame exactness",
+        "search terminal correctness"
+      ]
+    }
+  ],
+  "cautions": [
+    "Metamorphic relations are strongest for exact rule-layer behaviors such as move sets and perft.",
+    "Evaluation-level metamorphic relations are useful but weaker; the 2025 replication study found that some apparent discrepancies in Stockfish came from implementation details such as move ordering rather than rule bugs."
+  ]
+}

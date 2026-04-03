@@ -1,0 +1,1211 @@
+use ingot::{
+    decode_move,
+    in_check,
+    is_square_attacked,
+    meta_black_king_sq,
+    meta_castling_rights,
+    meta_ep_file,
+    meta_fullmove_number,
+    meta_halfmove_clock,
+    meta_set_black_king_sq,
+    meta_set_castling_rights,
+    meta_set_ep_file,
+    meta_set_fullmove_number,
+    meta_set_halfmove_clock,
+    meta_set_side_to_move,
+    meta_set_white_king_sq,
+    meta_side_to_move_is_white,
+    meta_white_king_sq,
+    piece_at,
+    set_piece,
+    clear_piece,
+    Move,
+    ValidationError,
+    CASTLE_BK,
+    CASTLE_BQ,
+    CASTLE_WK,
+    CASTLE_WQ,
+    EP_NONE,
+    PIECE_BB,
+    PIECE_BK,
+    PIECE_BN,
+    PIECE_BP,
+    PIECE_BQ,
+    PIECE_BR,
+    PIECE_EMPTY,
+    PIECE_WB,
+    PIECE_WK,
+    PIECE_WN,
+    PIECE_WP,
+    PIECE_WQ,
+    PIECE_WR,
+}
+
+use ingot::{abs_diff, is_black_piece, is_empty, is_white_piece, max_u8, piece_kind, sq, sq_file, sq_rank}
+
+struct ApplyOutcome {
+    board: u256,
+    meta: u256,
+    is_capture: bool,
+    is_pawn_move: bool,
+    did_double_push: bool,
+    rook_corner_moved: u8,
+    king_moved: bool,
+}
+
+fn path_clear_file(board_word: u256, from_file: u8, from_rank: u8, to_rank: u8) -> bool {
+    if from_rank == to_rank {
+        return true
+    }
+    let mut r = from_rank
+    if to_rank > from_rank {
+        while r + 1 < to_rank {
+            r += 1
+            if !is_empty(piece_at(board_word, sq(from_file, r))) {
+                return false
+            }
+        }
+    } else {
+        while r > to_rank + 1 {
+            r -= 1
+            if !is_empty(piece_at(board_word, sq(from_file, r))) {
+                return false
+            }
+        }
+    }
+    true
+}
+
+fn path_clear_rank(board_word: u256, from_rank: u8, from_file: u8, to_file: u8) -> bool {
+    if from_file == to_file {
+        return true
+    }
+    let mut f = from_file
+    if to_file > from_file {
+        while f + 1 < to_file {
+            f += 1
+            if !is_empty(piece_at(board_word, sq(f, from_rank))) {
+                return false
+            }
+        }
+    } else {
+        while f > to_file + 1 {
+            f -= 1
+            if !is_empty(piece_at(board_word, sq(f, from_rank))) {
+                return false
+            }
+        }
+    }
+    true
+}
+
+fn path_clear_diag(board_word: u256, from_file: u8, from_rank: u8, to_file: u8, to_rank: u8) -> bool {
+    let dx = abs_diff(to_file, from_file)
+    let dy = abs_diff(to_rank, from_rank)
+    if dx != dy || dx == 0 {
+        return false
+    }
+    let mut f = from_file
+    let mut r = from_rank
+    while abs_diff(f, to_file) > 1 {
+        if to_file > f {
+            f += 1
+        } else {
+            f -= 1
+        }
+        if to_rank > r {
+            r += 1
+        } else {
+            r -= 1
+        }
+        if !is_empty(piece_at(board_word, sq(f, r))) {
+            return false
+        }
+    }
+    true
+}
+
+fn promo_piece(is_white: bool, promo: u8) -> u8 {
+    if is_white {
+        if promo == 1 { PIECE_WN }
+        else if promo == 2 { PIECE_WB }
+        else if promo == 3 { PIECE_WR }
+        else { PIECE_WQ }
+    } else {
+        if promo == 1 { PIECE_BN }
+        else if promo == 2 { PIECE_BB }
+        else if promo == 3 { PIECE_BR }
+        else { PIECE_BQ }
+    }
+}
+
+fn apply_pawn(
+    board_word: u256,
+    meta_word: u256,
+    from_sq: u8,
+    to_sq: u8,
+    promo: u8,
+    dest_piece: u8,
+    stm_white: bool,
+) -> Result<ValidationError, ApplyOutcome> {
+    let from_file = sq_file(from_sq)
+    let from_rank = sq_rank(from_sq)
+    let to_file = sq_file(to_sq)
+    let to_rank = sq_rank(to_sq)
+    let dx = abs_diff(to_file, from_file)
+    let dy = abs_diff(to_rank, from_rank)
+
+    let mut next_board = board_word
+    let next_meta = meta_word
+    let mut is_capture = false
+    let mut did_double_push = false
+
+    if stm_white {
+        // Forward move.
+        if to_file == from_file && to_rank == from_rank + 1 {
+            if dest_piece != PIECE_EMPTY {
+                return Err(ValidationError::BadGeometry)
+            }
+            if to_rank == 7 {
+                if promo == 0 {
+                    return Err(ValidationError::MissingPromotionChoice)
+                }
+                if promo > 4 {
+                    return Err(ValidationError::BadGeometry)
+                }
+                next_board = clear_piece(next_board, from_sq)
+                next_board = set_piece(next_board, to_sq, promo_piece(true, promo))
+            } else {
+                if promo != 0 {
+                    return Err(ValidationError::BadGeometry)
+                }
+                next_board = clear_piece(next_board, from_sq)
+                next_board = set_piece(next_board, to_sq, PIECE_WP)
+            }
+        }
+        // Double push.
+        else if to_file == from_file && from_rank == 1 && to_rank == 3 {
+            if promo != 0 {
+                return Err(ValidationError::BadGeometry)
+            }
+            if dest_piece != PIECE_EMPTY {
+                return Err(ValidationError::BadGeometry)
+            }
+            if piece_at(board_word, from_sq + 8) != PIECE_EMPTY {
+                return Err(ValidationError::BlockedPath)
+            }
+            next_board = clear_piece(next_board, from_sq)
+            next_board = set_piece(next_board, to_sq, PIECE_WP)
+            did_double_push = true
+        }
+        // Capture / en passant.
+        else if dy == 1 && dx == 1 && to_rank == from_rank + 1 {
+            if dest_piece != PIECE_EMPTY {
+                is_capture = true
+                if to_rank == 7 {
+                    if promo == 0 {
+                        return Err(ValidationError::MissingPromotionChoice)
+                    }
+                    if promo > 4 {
+                        return Err(ValidationError::BadGeometry)
+                    }
+                    next_board = clear_piece(next_board, from_sq)
+                    next_board = set_piece(next_board, to_sq, promo_piece(true, promo))
+                } else {
+                    if promo != 0 {
+                        return Err(ValidationError::BadGeometry)
+                    }
+                    next_board = clear_piece(next_board, from_sq)
+                    next_board = set_piece(next_board, to_sq, PIECE_WP)
+                }
+            } else {
+                // En passant capture.
+                if promo != 0 {
+                    return Err(ValidationError::BadGeometry)
+                }
+                let ep_file = meta_ep_file(meta_word)
+                if ep_file == EP_NONE {
+                    return Err(ValidationError::BadGeometry)
+                }
+                let ep_sq = sq(ep_file, 5)
+                if to_sq != ep_sq {
+                    return Err(ValidationError::BadGeometry)
+                }
+                let victim_sq = to_sq - 8
+                let victim_piece = piece_at(board_word, victim_sq)
+                if !(is_black_piece(victim_piece) && piece_kind(victim_piece) == 1) {
+                    return Err(ValidationError::IllegalEnPassant)
+                }
+                is_capture = true
+                next_board = clear_piece(next_board, from_sq)
+                next_board = clear_piece(next_board, victim_sq)
+                next_board = set_piece(next_board, to_sq, PIECE_WP)
+            }
+        } else {
+            return Err(ValidationError::BadGeometry)
+        }
+    } else {
+        // Black pawn.
+        if to_file == from_file && from_rank == to_rank + 1 {
+            if dest_piece != PIECE_EMPTY {
+                return Err(ValidationError::BadGeometry)
+            }
+            if to_rank == 0 {
+                if promo == 0 {
+                    return Err(ValidationError::MissingPromotionChoice)
+                }
+                if promo > 4 {
+                    return Err(ValidationError::BadGeometry)
+                }
+                next_board = clear_piece(next_board, from_sq)
+                next_board = set_piece(next_board, to_sq, promo_piece(false, promo))
+            } else {
+                if promo != 0 {
+                    return Err(ValidationError::BadGeometry)
+                }
+                next_board = clear_piece(next_board, from_sq)
+                next_board = set_piece(next_board, to_sq, PIECE_BP)
+            }
+        }
+        // Double push.
+        else if to_file == from_file && from_rank == 6 && to_rank == 4 {
+            if promo != 0 {
+                return Err(ValidationError::BadGeometry)
+            }
+            if dest_piece != PIECE_EMPTY {
+                return Err(ValidationError::BadGeometry)
+            }
+            if piece_at(board_word, from_sq - 8) != PIECE_EMPTY {
+                return Err(ValidationError::BlockedPath)
+            }
+            next_board = clear_piece(next_board, from_sq)
+            next_board = set_piece(next_board, to_sq, PIECE_BP)
+            did_double_push = true
+        }
+        // Capture / en passant.
+        else if dy == 1 && dx == 1 && from_rank == to_rank + 1 {
+            if dest_piece != PIECE_EMPTY {
+                is_capture = true
+                if to_rank == 0 {
+                    if promo == 0 {
+                        return Err(ValidationError::MissingPromotionChoice)
+                    }
+                    if promo > 4 {
+                        return Err(ValidationError::BadGeometry)
+                    }
+                    next_board = clear_piece(next_board, from_sq)
+                    next_board = set_piece(next_board, to_sq, promo_piece(false, promo))
+                } else {
+                    if promo != 0 {
+                        return Err(ValidationError::BadGeometry)
+                    }
+                    next_board = clear_piece(next_board, from_sq)
+                    next_board = set_piece(next_board, to_sq, PIECE_BP)
+                }
+            } else {
+                // En passant capture.
+                if promo != 0 {
+                    return Err(ValidationError::BadGeometry)
+                }
+                let ep_file = meta_ep_file(meta_word)
+                if ep_file == EP_NONE {
+                    return Err(ValidationError::BadGeometry)
+                }
+                let ep_sq = sq(ep_file, 2)
+                if to_sq != ep_sq {
+                    return Err(ValidationError::BadGeometry)
+                }
+                let victim_sq = to_sq + 8
+                let victim_piece = piece_at(board_word, victim_sq)
+                if !(is_white_piece(victim_piece) && piece_kind(victim_piece) == 1) {
+                    return Err(ValidationError::IllegalEnPassant)
+                }
+                is_capture = true
+                next_board = clear_piece(next_board, from_sq)
+                next_board = clear_piece(next_board, victim_sq)
+                next_board = set_piece(next_board, to_sq, PIECE_BP)
+            }
+        } else {
+            return Err(ValidationError::BadGeometry)
+        }
+    }
+
+    Ok(ApplyOutcome {
+        board: next_board,
+        meta: next_meta,
+        is_capture: is_capture,
+        is_pawn_move: true,
+        did_double_push: did_double_push,
+        rook_corner_moved: 0,
+        king_moved: false,
+    })
+}
+
+fn apply_knight(
+    board_word: u256,
+    meta_word: u256,
+    from_sq: u8,
+    to_sq: u8,
+    promo: u8,
+    moving_piece: u8,
+    dest_piece: u8,
+) -> Result<ValidationError, ApplyOutcome> {
+    if promo != 0 {
+        return Err(ValidationError::BadGeometry)
+    }
+
+    let from_file = sq_file(from_sq)
+    let from_rank = sq_rank(from_sq)
+    let to_file = sq_file(to_sq)
+    let to_rank = sq_rank(to_sq)
+    let dx = abs_diff(to_file, from_file)
+    let dy = abs_diff(to_rank, from_rank)
+    if !((dx == 1 && dy == 2) || (dx == 2 && dy == 1)) {
+        return Err(ValidationError::BadGeometry)
+    }
+
+    let mut next_board = board_word
+    let is_capture = dest_piece != PIECE_EMPTY
+    next_board = clear_piece(next_board, from_sq)
+    next_board = set_piece(next_board, to_sq, moving_piece)
+
+    Ok(ApplyOutcome {
+        board: next_board,
+        meta: meta_word,
+        is_capture: is_capture,
+        is_pawn_move: false,
+        did_double_push: false,
+        rook_corner_moved: 0,
+        king_moved: false,
+    })
+}
+
+fn apply_bishop(
+    board_word: u256,
+    meta_word: u256,
+    from_sq: u8,
+    to_sq: u8,
+    promo: u8,
+    moving_piece: u8,
+    dest_piece: u8,
+) -> Result<ValidationError, ApplyOutcome> {
+    if promo != 0 {
+        return Err(ValidationError::BadGeometry)
+    }
+
+    let from_file = sq_file(from_sq)
+    let from_rank = sq_rank(from_sq)
+    let to_file = sq_file(to_sq)
+    let to_rank = sq_rank(to_sq)
+    let dx = abs_diff(to_file, from_file)
+    let dy = abs_diff(to_rank, from_rank)
+    if dx != dy || dx == 0 {
+        return Err(ValidationError::BadGeometry)
+    }
+    if !path_clear_diag(board_word, from_file, from_rank, to_file, to_rank) {
+        return Err(ValidationError::BlockedPath)
+    }
+
+    let mut next_board = board_word
+    let is_capture = dest_piece != PIECE_EMPTY
+    next_board = clear_piece(next_board, from_sq)
+    next_board = set_piece(next_board, to_sq, moving_piece)
+
+    Ok(ApplyOutcome {
+        board: next_board,
+        meta: meta_word,
+        is_capture: is_capture,
+        is_pawn_move: false,
+        did_double_push: false,
+        rook_corner_moved: 0,
+        king_moved: false,
+    })
+}
+
+fn apply_rook(
+    board_word: u256,
+    meta_word: u256,
+    from_sq: u8,
+    to_sq: u8,
+    promo: u8,
+    moving_piece: u8,
+    dest_piece: u8,
+    stm_white: bool,
+) -> Result<ValidationError, ApplyOutcome> {
+    if promo != 0 {
+        return Err(ValidationError::BadGeometry)
+    }
+
+    let from_file = sq_file(from_sq)
+    let from_rank = sq_rank(from_sq)
+    let to_file = sq_file(to_sq)
+    let to_rank = sq_rank(to_sq)
+    let dx = abs_diff(to_file, from_file)
+    let dy = abs_diff(to_rank, from_rank)
+
+    if !(dx == 0 && dy != 0) && !(dy == 0 && dx != 0) {
+        return Err(ValidationError::BadGeometry)
+    }
+    if dx == 0 {
+        if !path_clear_file(board_word, from_file, from_rank, to_rank) {
+            return Err(ValidationError::BlockedPath)
+        }
+    } else {
+        if !path_clear_rank(board_word, from_rank, from_file, to_file) {
+            return Err(ValidationError::BlockedPath)
+        }
+    }
+
+    let mut rook_corner_moved: u8 = 0
+    if stm_white {
+        if from_sq == 0 {
+            rook_corner_moved = CASTLE_WQ
+        } else if from_sq == 7 {
+            rook_corner_moved = CASTLE_WK
+        }
+    } else {
+        if from_sq == 56 {
+            rook_corner_moved = CASTLE_BQ
+        } else if from_sq == 63 {
+            rook_corner_moved = CASTLE_BK
+        }
+    }
+
+    let mut next_board = board_word
+    let is_capture = dest_piece != PIECE_EMPTY
+    next_board = clear_piece(next_board, from_sq)
+    next_board = set_piece(next_board, to_sq, moving_piece)
+
+    Ok(ApplyOutcome {
+        board: next_board,
+        meta: meta_word,
+        is_capture: is_capture,
+        is_pawn_move: false,
+        did_double_push: false,
+        rook_corner_moved: rook_corner_moved,
+        king_moved: false,
+    })
+}
+
+fn apply_queen(
+    board_word: u256,
+    meta_word: u256,
+    from_sq: u8,
+    to_sq: u8,
+    promo: u8,
+    moving_piece: u8,
+    dest_piece: u8,
+) -> Result<ValidationError, ApplyOutcome> {
+    if promo != 0 {
+        return Err(ValidationError::BadGeometry)
+    }
+
+    let from_file = sq_file(from_sq)
+    let from_rank = sq_rank(from_sq)
+    let to_file = sq_file(to_sq)
+    let to_rank = sq_rank(to_sq)
+    let dx = abs_diff(to_file, from_file)
+    let dy = abs_diff(to_rank, from_rank)
+
+    let diag = dx == dy && dx != 0
+    let straight = (dx == 0 && dy != 0) || (dy == 0 && dx != 0)
+    if !(diag || straight) {
+        return Err(ValidationError::BadGeometry)
+    }
+
+    if diag {
+        if !path_clear_diag(board_word, from_file, from_rank, to_file, to_rank) {
+            return Err(ValidationError::BlockedPath)
+        }
+    } else {
+        if dx == 0 {
+            if !path_clear_file(board_word, from_file, from_rank, to_rank) {
+                return Err(ValidationError::BlockedPath)
+            }
+        } else {
+            if !path_clear_rank(board_word, from_rank, from_file, to_file) {
+                return Err(ValidationError::BlockedPath)
+            }
+        }
+    }
+
+    let mut next_board = board_word
+    let is_capture = dest_piece != PIECE_EMPTY
+    next_board = clear_piece(next_board, from_sq)
+    next_board = set_piece(next_board, to_sq, moving_piece)
+
+    Ok(ApplyOutcome {
+        board: next_board,
+        meta: meta_word,
+        is_capture: is_capture,
+        is_pawn_move: false,
+        did_double_push: false,
+        rook_corner_moved: 0,
+        king_moved: false,
+    })
+}
+
+fn apply_king(
+    board_word: u256,
+    meta_word: u256,
+    from_sq: u8,
+    to_sq: u8,
+    promo: u8,
+    moving_piece: u8,
+    dest_piece: u8,
+    stm_white: bool,
+) -> Result<ValidationError, ApplyOutcome> {
+    if promo != 0 {
+        return Err(ValidationError::BadGeometry)
+    }
+
+    let from_file = sq_file(from_sq)
+    let from_rank = sq_rank(from_sq)
+    let to_file = sq_file(to_sq)
+    let to_rank = sq_rank(to_sq)
+    let dx = abs_diff(to_file, from_file)
+    let dy = abs_diff(to_rank, from_rank)
+
+    let mut next_board = board_word
+    let mut next_meta = meta_word
+    let mut is_capture = false
+
+    // Castling attempt: king moves two squares horizontally.
+    if dy == 0 && dx == 2 {
+        if dest_piece != PIECE_EMPTY {
+            return Err(ValidationError::IllegalCastle)
+        }
+        let rights = meta_castling_rights(meta_word)
+        if stm_white {
+            if from_sq != 4 {
+                return Err(ValidationError::IllegalCastle)
+            }
+            if to_sq == 6 {
+                // Kingside.
+                if (rights & CASTLE_WK) == 0 {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if piece_at(board_word, 7) != PIECE_WR {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if piece_at(board_word, 5) != PIECE_EMPTY || piece_at(board_word, 6) != PIECE_EMPTY {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if in_check(board_word, meta_word, true) {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if is_square_attacked(board_word, meta_word, 5, false) || is_square_attacked(board_word, meta_word, 6, false) {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                next_board = clear_piece(next_board, 4)
+                next_board = clear_piece(next_board, 7)
+                next_board = set_piece(next_board, 6, moving_piece)
+                next_board = set_piece(next_board, 5, PIECE_WR)
+                next_meta = meta_set_white_king_sq(next_meta, 6)
+            } else if to_sq == 2 {
+                // Queenside.
+                if (rights & CASTLE_WQ) == 0 {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if piece_at(board_word, 0) != PIECE_WR {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if piece_at(board_word, 1) != PIECE_EMPTY || piece_at(board_word, 2) != PIECE_EMPTY || piece_at(board_word, 3) != PIECE_EMPTY {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if in_check(board_word, meta_word, true) {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if is_square_attacked(board_word, meta_word, 3, false) || is_square_attacked(board_word, meta_word, 2, false) {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                next_board = clear_piece(next_board, 4)
+                next_board = clear_piece(next_board, 0)
+                next_board = set_piece(next_board, 2, moving_piece)
+                next_board = set_piece(next_board, 3, PIECE_WR)
+                next_meta = meta_set_white_king_sq(next_meta, 2)
+            } else {
+                return Err(ValidationError::IllegalCastle)
+            }
+        } else {
+            // Black castling.
+            if from_sq != 60 {
+                return Err(ValidationError::IllegalCastle)
+            }
+            if to_sq == 62 {
+                if (rights & CASTLE_BK) == 0 {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if piece_at(board_word, 63) != PIECE_BR {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if piece_at(board_word, 61) != PIECE_EMPTY || piece_at(board_word, 62) != PIECE_EMPTY {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if in_check(board_word, meta_word, false) {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if is_square_attacked(board_word, meta_word, 61, true) || is_square_attacked(board_word, meta_word, 62, true) {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                next_board = clear_piece(next_board, 60)
+                next_board = clear_piece(next_board, 63)
+                next_board = set_piece(next_board, 62, moving_piece)
+                next_board = set_piece(next_board, 61, PIECE_BR)
+                next_meta = meta_set_black_king_sq(next_meta, 62)
+            } else if to_sq == 58 {
+                if (rights & CASTLE_BQ) == 0 {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if piece_at(board_word, 56) != PIECE_BR {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if piece_at(board_word, 57) != PIECE_EMPTY || piece_at(board_word, 58) != PIECE_EMPTY || piece_at(board_word, 59) != PIECE_EMPTY {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if in_check(board_word, meta_word, false) {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                if is_square_attacked(board_word, meta_word, 59, true) || is_square_attacked(board_word, meta_word, 58, true) {
+                    return Err(ValidationError::IllegalCastle)
+                }
+                next_board = clear_piece(next_board, 60)
+                next_board = clear_piece(next_board, 56)
+                next_board = set_piece(next_board, 58, moving_piece)
+                next_board = set_piece(next_board, 59, PIECE_BR)
+                next_meta = meta_set_black_king_sq(next_meta, 58)
+            } else {
+                return Err(ValidationError::IllegalCastle)
+            }
+        }
+    } else {
+        // Normal king move.
+        if max_u8(dx, dy) != 1 {
+            return Err(ValidationError::BadGeometry)
+        }
+        if dest_piece != PIECE_EMPTY {
+            is_capture = true
+        }
+        next_board = clear_piece(next_board, from_sq)
+        next_board = set_piece(next_board, to_sq, moving_piece)
+        if stm_white {
+            next_meta = meta_set_white_king_sq(next_meta, to_sq)
+        } else {
+            next_meta = meta_set_black_king_sq(next_meta, to_sq)
+        }
+    }
+
+    Ok(ApplyOutcome {
+        board: next_board,
+        meta: next_meta,
+        is_capture: is_capture,
+        is_pawn_move: false,
+        did_double_push: false,
+        rook_corner_moved: 0,
+        king_moved: true,
+    })
+}
+
+pub fn validate_move(board_word: u256, meta_word: u256, mv: Move) -> Result<ValidationError, (u256, u256)> {
+    let (from_sq, to_sq, promo) = decode_move(mv)
+    let stm_white = meta_side_to_move_is_white(meta_word)
+
+    let moving_piece = piece_at(board_word, from_sq)
+    if moving_piece == PIECE_EMPTY {
+        return Err(ValidationError::NoPieceAtSource)
+    }
+    if stm_white {
+        if !is_white_piece(moving_piece) {
+            return Err(ValidationError::WrongSideToMove)
+        }
+    } else {
+        if !is_black_piece(moving_piece) {
+            return Err(ValidationError::WrongSideToMove)
+        }
+    }
+
+    let dest_piece = piece_at(board_word, to_sq)
+    if dest_piece != PIECE_EMPTY {
+        if stm_white {
+            if is_white_piece(dest_piece) {
+                return Err(ValidationError::FriendlyOccupiedDestination)
+            }
+        } else {
+            if is_black_piece(dest_piece) {
+                return Err(ValidationError::FriendlyOccupiedDestination)
+            }
+        }
+        // Capturing the king is never a legal chess move.
+        if piece_kind(dest_piece) == 6 {
+            return Err(ValidationError::BadGeometry)
+        }
+    }
+
+    let kind = piece_kind(moving_piece)
+
+    // Apply board transitions (unchecked king safety).
+    let apply = match kind {
+        1 => apply_pawn(board_word, meta_word, from_sq, to_sq, promo, dest_piece, stm_white),
+        2 => apply_knight(board_word, meta_word, from_sq, to_sq, promo, moving_piece, dest_piece),
+        3 => apply_bishop(board_word, meta_word, from_sq, to_sq, promo, moving_piece, dest_piece),
+        4 => apply_rook(board_word, meta_word, from_sq, to_sq, promo, moving_piece, dest_piece, stm_white),
+        5 => apply_queen(board_word, meta_word, from_sq, to_sq, promo, moving_piece, dest_piece),
+        6 => apply_king(board_word, meta_word, from_sq, to_sq, promo, moving_piece, dest_piece, stm_white),
+        _ => Err(ValidationError::BadGeometry),
+    }
+
+    match apply {
+        Err(e) => Err(e),
+        Ok(ApplyOutcome {
+            board: next_board,
+            meta: next_meta0,
+            is_capture,
+            is_pawn_move,
+            did_double_push,
+            rook_corner_moved,
+            king_moved,
+        }) => {
+            let mut next_meta = next_meta0
+
+            // --- metadata updates ---
+            // Castling rights.
+            let mut rights = meta_castling_rights(meta_word)
+            if king_moved {
+                if stm_white {
+                    rights = rights & ~(CASTLE_WK | CASTLE_WQ)
+                } else {
+                    rights = rights & ~(CASTLE_BK | CASTLE_BQ)
+                }
+            }
+            if rook_corner_moved != 0 {
+                rights = rights & ~rook_corner_moved
+            }
+            // If we captured a rook on its home square, remove that right.
+            if dest_piece != PIECE_EMPTY && piece_kind(dest_piece) == 4 {
+                if is_white_piece(dest_piece) {
+                    if to_sq == 0 {
+                        rights = rights & ~CASTLE_WQ
+                    } else if to_sq == 7 {
+                        rights = rights & ~CASTLE_WK
+                    }
+                } else {
+                    if to_sq == 56 {
+                        rights = rights & ~CASTLE_BQ
+                    } else if to_sq == 63 {
+                        rights = rights & ~CASTLE_BK
+                    }
+                }
+            }
+            next_meta = meta_set_castling_rights(next_meta, rights)
+
+            // EP file.
+            if did_double_push {
+                next_meta = meta_set_ep_file(next_meta, sq_file(from_sq))
+            } else {
+                next_meta = meta_set_ep_file(next_meta, EP_NONE)
+            }
+
+            // Halfmove clock.
+            let mut half = meta_halfmove_clock(meta_word)
+            if is_pawn_move || is_capture {
+                half = 0
+            } else {
+                half = half + 1
+            }
+            next_meta = meta_set_halfmove_clock(next_meta, half)
+
+            // Fullmove number.
+            let mut full = meta_fullmove_number(meta_word)
+            if !stm_white {
+                full = full + 1
+            }
+            next_meta = meta_set_fullmove_number(next_meta, full)
+
+            // Flip side to move.
+            next_meta = meta_set_side_to_move(next_meta, !stm_white)
+
+            // --- self-check rejection ---
+            if stm_white {
+                let wk = meta_white_king_sq(next_meta)
+                if is_square_attacked(next_board, next_meta, wk, false) {
+                    return Err(ValidationError::LeavesKingInCheck)
+                }
+            } else {
+                let bk = meta_black_king_sq(next_meta)
+                if is_square_attacked(next_board, next_meta, bk, true) {
+                    return Err(ValidationError::LeavesKingInCheck)
+                }
+            }
+
+            Ok((next_board, next_meta))
+        }
+    }
+}
+
+// --- tests (edge cases from starter pack) ---
+
+fn meta_custom(
+    stm_white: bool,
+    rights: u8,
+    ep_file: u8,
+    halfmove: u16,
+    fullmove: u16,
+    wk: u8,
+    bk: u8,
+) -> u256 {
+    let mut meta: u256 = 0
+    meta = meta_set_side_to_move(meta, stm_white)
+    meta = meta_set_castling_rights(meta, rights)
+    meta = meta_set_ep_file(meta, ep_file)
+    meta = meta_set_halfmove_clock(meta, halfmove)
+    meta = meta_set_fullmove_number(meta, fullmove)
+    meta = meta_set_white_king_sq(meta, wk)
+    meta = meta_set_black_king_sq(meta, bk)
+    meta
+}
+
+#[test]
+fn test_validate_move_empty_source() {
+    let board: u256 = 0
+    let meta = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let mv = ingot::encode_move(from_sq: 0, to_sq: 1, promo: 0)
+    match validate_move(board, meta, mv) {
+        Err(ValidationError::NoPieceAtSource) => {}
+        _ => assert(false)
+    }
+}
+
+#[test]
+fn test_validate_move_wrong_side_to_move() {
+    let mut board: u256 = 0
+    board = set_piece(board, 48, PIECE_BP) // a7
+    let meta = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let mv = ingot::encode_move(from_sq: 48, to_sq: 40, promo: 0)
+    match validate_move(board, meta, mv) {
+        Err(ValidationError::WrongSideToMove) => {}
+        _ => assert(false)
+    }
+}
+
+#[test]
+fn test_validate_move_minimal_ok() {
+    let board = ingot::board_init_standard()
+    let meta = ingot::meta_init_standard()
+
+    // e2e4
+    let mv = ingot::encode_move(from_sq: 12, to_sq: 28, promo: 0)
+    match validate_move(board, meta, mv) {
+        Ok((board2, meta2)) => {
+            assert(piece_at(board2, 12) == PIECE_EMPTY)
+            assert(piece_at(board2, 28) == PIECE_WP)
+            assert(!meta_side_to_move_is_white(meta2))
+            assert(meta_ep_file(meta2) == 4) // e-file
+            assert(meta_halfmove_clock(meta2) == 0)
+            assert(meta_fullmove_number(meta2) == 1)
+        }
+        Err(_) => assert(false)
+    }
+}
+
+#[test]
+fn test_edge_ep_discovered_check_illegal() {
+    // FEN: k7/8/8/4KPpr/8/8/8/8 w - g6 0 1
+    let mut board: u256 = 0
+    // Black king a8
+    board = set_piece(board, 56, PIECE_BK)
+    // White king e5
+    board = set_piece(board, 36, PIECE_WK)
+    // White pawn f5
+    board = set_piece(board, 37, PIECE_WP)
+    // Black pawn g5
+    board = set_piece(board, 38, PIECE_BP)
+    // Black rook h5
+    board = set_piece(board, 39, PIECE_BR)
+
+    let meta = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: 6, // g-file, and white-to-move => ep square is g6
+        halfmove: 0,
+        fullmove: 1,
+        wk: 36,
+        bk: 56,
+    )
+
+    let mv = ingot::encode_move(from_sq: 37, to_sq: 46, promo: 0) // f5g6 ep attempt
+    let res = validate_move(board, meta, mv)
+    match res {
+        Ok(_) => assert(false)
+        Err(ValidationError::LeavesKingInCheck) => {}
+        Err(_) => assert(false)
+    }
+}
+
+#[test]
+fn test_edge_castle_through_attack_illegal_and_legal() {
+    // FEN: r3k2r/8/8/8/2b5/8/8/R3K2R w KQkq - 0 1
+    let mut board: u256 = 0
+    // Black: rooks a8/h8, king e8, bishop c4
+    board = set_piece(board, 56, PIECE_BR)
+    board = set_piece(board, 60, PIECE_BK)
+    board = set_piece(board, 63, PIECE_BR)
+    board = set_piece(board, 26, PIECE_BB)
+    // White: rooks a1/h1, king e1
+    board = set_piece(board, 0, PIECE_WR)
+    board = set_piece(board, 4, PIECE_WK)
+    board = set_piece(board, 7, PIECE_WR)
+
+    let meta = meta_custom(
+        stm_white: true,
+        rights: CASTLE_WK | CASTLE_WQ | CASTLE_BK | CASTLE_BQ,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+
+    // Illegal: e1g1 (through attacked f1).
+    let mv_illegal = ingot::encode_move(from_sq: 4, to_sq: 6, promo: 0)
+    let res_illegal = validate_move(board, meta, mv_illegal)
+    match res_illegal {
+        Ok(_) => assert(false)
+        Err(ValidationError::IllegalCastle) => {}
+        Err(_) => assert(false)
+    }
+
+    // Legal: e1c1.
+    let mv_legal = ingot::encode_move(from_sq: 4, to_sq: 2, promo: 0)
+    let res_legal = validate_move(board, meta, mv_legal)
+    match res_legal {
+        Ok((board2, meta2)) => {
+            // King on c1, rook from a1 to d1.
+            assert(piece_at(board2, 2) == PIECE_WK)
+            assert(piece_at(board2, 3) == PIECE_WR)
+            assert(meta_white_king_sq(meta2) == 2)
+        }
+        Err(_) => assert(false)
+    }
+}
+
+#[test]
+fn test_edge_promotion_requires_piece() {
+    // FEN: 4k3/P7/8/8/8/8/8/4K3 w - - 0 1
+    let mut board: u256 = 0
+    board = set_piece(board, 60, PIECE_BK)  // black king e8
+    board = set_piece(board, 48, PIECE_WP)  // white pawn a7
+    board = set_piece(board, 4, PIECE_WK)   // white king e1
+
+    let meta = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+
+    // Illegal: a7a8 (no promo).
+    let mv_bad = ingot::encode_move(from_sq: 48, to_sq: 56, promo: 0)
+    let res_bad = validate_move(board, meta, mv_bad)
+    match res_bad {
+        Ok(_) => assert(false)
+        Err(ValidationError::MissingPromotionChoice) => {}
+        Err(_) => assert(false)
+    }
+
+    // Legal: a7a8q
+    let mv_ok = ingot::encode_move(from_sq: 48, to_sq: 56, promo: 4)
+    let res_ok = validate_move(board, meta, mv_ok)
+    match res_ok {
+        Ok((board2, _)) => assert(piece_at(board2, 56) == PIECE_WQ)
+        Err(_) => assert(false)
+    }
+}
+
+#[test]
+fn test_castling_rights_removed_when_rook_moves_and_stays_removed() {
+    // White: king e1, rooks a1/h1. Black: king e8.
+    let mut board: u256 = 0
+    board = set_piece(board, 4, PIECE_WK)
+    board = set_piece(board, 0, PIECE_WR)
+    board = set_piece(board, 7, PIECE_WR)
+    board = set_piece(board, 60, PIECE_BK)
+
+    let meta0 = meta_custom(
+        stm_white: true,
+        rights: CASTLE_WK | CASTLE_WQ,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+
+    // a1a2 removes white queenside castling.
+    let mv1 = ingot::encode_move(from_sq: 0, to_sq: 8, promo: 0)
+    let (board1, meta1) = match validate_move(board, meta0, mv1) {
+        Ok(x) => x,
+        Err(_) => {
+            assert(false)
+            (0, 0)
+        }
+    }
+    assert(meta_castling_rights(meta1) == CASTLE_WK)
+
+    // Black makes a dummy king move to pass the turn.
+    let mv2 = ingot::encode_move(from_sq: 60, to_sq: 52, promo: 0) // e8e7
+    let (board2, meta2) = match validate_move(board1, meta1, mv2) {
+        Ok(x) => x,
+        Err(_) => {
+            assert(false)
+            (0, 0)
+        }
+    }
+
+    // a2a1 does not restore castling rights.
+    let mv3 = ingot::encode_move(from_sq: 8, to_sq: 0, promo: 0)
+    let (board3, meta3) = match validate_move(board2, meta2, mv3) {
+        Ok(x) => x,
+        Err(_) => {
+            assert(false)
+            (0, 0)
+        }
+    }
+
+    assert(piece_at(board3, 0) == PIECE_WR)
+    assert(meta_castling_rights(meta3) == CASTLE_WK)
+}
+
+#[test]
+fn test_castling_rights_removed_when_rook_captured_on_a1() {
+    // Black rook captures white rook on a1; white queenside rights must be cleared.
+    let mut board: u256 = 0
+    board = set_piece(board, 4, PIECE_WK)
+    board = set_piece(board, 0, PIECE_WR)
+    board = set_piece(board, 60, PIECE_BK)
+    board = set_piece(board, 56, PIECE_BR) // a8 rook
+
+    let meta0 = meta_custom(
+        stm_white: false,
+        rights: CASTLE_WK | CASTLE_WQ,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+
+    let mv = ingot::encode_move(from_sq: 56, to_sq: 0, promo: 0) // a8a1
+    match validate_move(board, meta0, mv) {
+        Ok((board2, meta2)) => {
+            assert(piece_at(board2, 0) == PIECE_BR)
+            assert(meta_castling_rights(meta2) == CASTLE_WK)
+        }
+        Err(_) => assert(false)
+    }
+}
+
+#[test]
+fn test_castling_rights_removed_when_rook_captured_on_h1() {
+    // Black rook captures white rook on h1; white kingside rights must be cleared.
+    let mut board: u256 = 0
+    board = set_piece(board, 4, PIECE_WK)
+    board = set_piece(board, 7, PIECE_WR)
+    board = set_piece(board, 60, PIECE_BK)
+    board = set_piece(board, 63, PIECE_BR) // h8 rook
+
+    let meta0 = meta_custom(
+        stm_white: false,
+        rights: CASTLE_WK | CASTLE_WQ,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+
+    let mv = ingot::encode_move(from_sq: 63, to_sq: 7, promo: 0) // h8h1
+    match validate_move(board, meta0, mv) {
+        Ok((board2, meta2)) => {
+            assert(piece_at(board2, 7) == PIECE_BR)
+            assert(meta_castling_rights(meta2) == CASTLE_WQ)
+        }
+        Err(_) => assert(false)
+    }
+}
+
+#[test]
+fn test_promotion_does_not_restore_castling_rights() {
+    // Promoting a pawn to a rook must not create castling rights.
+    let mut board: u256 = 0
+    board = set_piece(board, 60, PIECE_BK) // black king e8
+    board = set_piece(board, 55, PIECE_WP) // white pawn h7
+    board = set_piece(board, 4, PIECE_WK) // white king e1
+
+    let meta0 = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+
+    let mv = ingot::encode_move(from_sq: 55, to_sq: 63, promo: 3) // h7h8r
+    match validate_move(board, meta0, mv) {
+        Ok((board2, meta2)) => {
+            assert(piece_at(board2, 63) == PIECE_WR)
+            assert(meta_castling_rights(meta2) == 0)
+        }
+        Err(_) => assert(false)
+    }
+}
+
+#[test]
+fn test_castling_rights_removed_when_rook_captured_by_promotion() {
+    // Capturing a rook on its home square must clear the corresponding castling right,
+    // even if the capture is part of a promotion.
+    let mut board: u256 = 0
+    board = set_piece(board, 60, PIECE_BK) // black king e8
+    board = set_piece(board, 63, PIECE_BR) // black rook h8
+    board = set_piece(board, 54, PIECE_WP) // white pawn g7
+    board = set_piece(board, 4, PIECE_WK) // white king e1
+
+    let meta0 = meta_custom(
+        stm_white: true,
+        rights: CASTLE_BK,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+
+    let mv = ingot::encode_move(from_sq: 54, to_sq: 63, promo: 4) // g7h8q
+    match validate_move(board, meta0, mv) {
+        Ok((board2, meta2)) => {
+            assert(piece_at(board2, 63) == PIECE_WQ)
+            assert((meta_castling_rights(meta2) & CASTLE_BK) == 0)
+        }
+        Err(_) => assert(false)
+    }
+}

@@ -1,0 +1,32 @@
+{
+  "version": "2026-04-03",
+  "counts_by_layer": {
+    "representation": 32,
+    "local_legality": 32,
+    "history": 25,
+    "reachability": 10,
+    "metamorphic": 12
+  },
+  "counts_by_severity": {
+    "fatal": 52,
+    "strict": 37,
+    "policy": 8,
+    "heuristic": 8,
+    "oracle": 6
+  },
+  "counts_by_stage": {
+    "parse_fen": 31,
+    "canonicalize": 10,
+    "after_make": 69,
+    "after_unmake": 57,
+    "after_null": 2,
+    "before_movegen": 0,
+    "after_movegen": 23,
+    "serialize": 12,
+    "search_root": 16,
+    "periodic_deep_check": 61,
+    "perft": 6,
+    "differential": 2,
+    "oracle": 11
+  }
+}

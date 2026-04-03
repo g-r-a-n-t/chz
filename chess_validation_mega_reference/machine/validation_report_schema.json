@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ChessValidationReport",
+  "type": "object",
+  "required": [
+    "ok",
+    "mode",
+    "stage",
+    "validity_level",
+    "failures"
+  ],
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "stage": {
+      "type": "string"
+    },
+    "validity_level": {
+      "type": "string",
+      "enum": [
+        "TRUSTED_GENERATED",
+        "BASIC_VALID",
+        "HEURISTIC_REACHABILITY_PASS",
+        "HEURISTIC_REACHABILITY_FAIL",
+        "INVALID"
+      ]
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "invariant_id",
+          "severity",
+          "message"
+        ],
+        "properties": {
+          "invariant_id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "normalized_changes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "elapsed_us": {
+          "type": "integer"
+        },
+        "generated_moves": {
+          "type": "integer"
+        },
+        "reference_moves": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,245 @@
+use std::evm::{mem, ops}
+
+use ingot::{
+    is_square_attacked,
+    meta_black_king_sq,
+    meta_castling_rights,
+    meta_ep_file,
+    meta_side_to_move_is_white,
+    meta_white_king_sq,
+    piece_at,
+    clear_piece,
+    set_piece,
+    EP_NONE,
+    PIECE_BK,
+    PIECE_BP,
+    PIECE_EMPTY,
+    PIECE_WK,
+    PIECE_WP,
+}
+
+use ingot::{is_black_piece, is_white_piece, piece_kind, sq, sq_file, sq_rank}
+
+fn has_legal_ep_capture(board_word: u256, meta_word: u256, ep_file: u8) -> bool {
+    if ep_file == EP_NONE {
+        return false
+    }
+
+    let stm_white = meta_side_to_move_is_white(meta_word)
+    let from_rank = if stm_white { 4 } else { 3 }
+
+    // Fast reject: if there is no adjacent pawn to capture, EP cannot be legal.
+    let mut has_candidate = false
+    if ep_file > 0 && !has_candidate {
+        let from_sq = sq(ep_file - 1, from_rank)
+        let p = piece_at(board_word, from_sq)
+        if stm_white {
+            if p == PIECE_WP {
+                has_candidate = true
+            }
+        } else {
+            if p == PIECE_BP {
+                has_candidate = true
+            }
+        }
+    }
+    if ep_file < 7 && !has_candidate {
+        let from_sq = sq(ep_file + 1, from_rank)
+        let p = piece_at(board_word, from_sq)
+        if stm_white {
+            if p == PIECE_WP {
+                has_candidate = true
+            }
+        } else {
+            if p == PIECE_BP {
+                has_candidate = true
+            }
+        }
+    }
+    if !has_candidate {
+        return false
+    }
+
+    let ep_sq = if stm_white { sq(ep_file, 5) } else { sq(ep_file, 2) }
+
+    if piece_at(board_word, ep_sq) != PIECE_EMPTY {
+        return false
+    }
+
+    let victim_sq = if stm_white { ep_sq - 8 } else { ep_sq + 8 }
+    let victim_piece = piece_at(board_word, victim_sq)
+    if stm_white {
+        if !(is_black_piece(victim_piece) && piece_kind(victim_piece) == 1) {
+            return false
+        }
+    } else {
+        if !(is_white_piece(victim_piece) && piece_kind(victim_piece) == 1) {
+            return false
+        }
+    }
+
+    let mut found = false
+
+    // Candidate pawn from file-1.
+    if ep_file > 0 && !found {
+        let from_sq = sq(ep_file - 1, from_rank)
+        let p = piece_at(board_word, from_sq)
+        if stm_white {
+            if p == PIECE_WP {
+                let mut next_board = board_word
+                next_board = clear_piece(next_board, from_sq)
+                next_board = clear_piece(next_board, victim_sq)
+                next_board = set_piece(next_board, ep_sq, PIECE_WP)
+                let wk = meta_white_king_sq(meta_word)
+                if !is_square_attacked(next_board, meta_word, wk, false) {
+                    found = true
+                }
+            }
+        } else {
+            if p == PIECE_BP {
+                let mut next_board = board_word
+                next_board = clear_piece(next_board, from_sq)
+                next_board = clear_piece(next_board, victim_sq)
+                next_board = set_piece(next_board, ep_sq, PIECE_BP)
+                let bk = meta_black_king_sq(meta_word)
+                if !is_square_attacked(next_board, meta_word, bk, true) {
+                    found = true
+                }
+            }
+        }
+    }
+
+    // Candidate pawn from file+1.
+    if ep_file < 7 && !found {
+        let from_sq = sq(ep_file + 1, from_rank)
+        let p = piece_at(board_word, from_sq)
+        if stm_white {
+            if p == PIECE_WP {
+                let mut next_board = board_word
+                next_board = clear_piece(next_board, from_sq)
+                next_board = clear_piece(next_board, victim_sq)
+                next_board = set_piece(next_board, ep_sq, PIECE_WP)
+                let wk = meta_white_king_sq(meta_word)
+                if !is_square_attacked(next_board, meta_word, wk, false) {
+                    found = true
+                }
+            }
+        } else {
+            if p == PIECE_BP {
+                let mut next_board = board_word
+                next_board = clear_piece(next_board, from_sq)
+                next_board = clear_piece(next_board, victim_sq)
+                next_board = set_piece(next_board, ep_sq, PIECE_BP)
+                let bk = meta_black_king_sq(meta_word)
+                if !is_square_attacked(next_board, meta_word, bk, true) {
+                    found = true
+                }
+            }
+        }
+    }
+
+    found
+}
+
+pub fn canonical_ep_file(board_word: u256, meta_word: u256) -> u8 {
+    let ep_file = meta_ep_file(meta_word)
+    if has_legal_ep_capture(board_word, meta_word, ep_file) {
+        ep_file
+    } else {
+        EP_NONE
+    }
+}
+
+pub fn repetition_hash(board_word: u256, meta_word: u256) -> u256 {
+    // Repetition identity includes:
+    // - board placement
+    // - side to move
+    // - castling rights
+    // - en passant *only when it changes legal moves* (canonicalized here)
+    let stm_bit: u256 = if meta_side_to_move_is_white(meta_word) { 1 } else { 0 }
+    let rights: u256 = meta_castling_rights(meta_word) as u256
+    let ep: u256 = canonical_ep_file(board_word, meta_word) as u256
+
+    // Pack into the low bits to avoid depending on other `meta_word` fields.
+    let rep_meta = stm_bit | (rights << 1) | (ep << 5)
+
+    // Use scratch memory so the preimage location is constant for symbolic tools.
+    ops::mstore(0, board_word)
+    ops::mstore(32, rep_meta)
+    ops::keccak256(0, 64)
+}
+
+// --- tests ---
+
+use ingot::{board_init_standard, encode_move, meta_init_standard, validate_move}
+
+#[test]
+fn test_canonical_ep_none_when_no_capture_exists() {
+    // After 1. e4, black has no legal EP capture.
+    let board = board_init_standard()
+    let meta = meta_init_standard()
+    let mv = encode_move(from_sq: 12, to_sq: 28, promo: 0)
+    let (board2, meta2) = match validate_move(board, meta, mv) {
+        Ok(x) => x,
+        Err(_) => {
+            assert(false)
+            (0, 0)
+        }
+    }
+    assert(meta_ep_file(meta2) == 4)
+    assert(canonical_ep_file(board2, meta2) == EP_NONE)
+}
+
+#[test]
+fn test_canonical_ep_kept_when_capture_exists() {
+    // Sequence:
+    // 1. e4 a6
+    // 2. e5 d5  (now white can capture ep: e5xd6)
+    let mut board = board_init_standard()
+    let mut meta = meta_init_standard()
+
+    let mv1 = encode_move(from_sq: 12, to_sq: 28, promo: 0) // e2e4
+    let (b1, m1) = match validate_move(board, meta, mv1) {
+        Ok(x) => x,
+        Err(_) => {
+            assert(false)
+            (0, 0)
+        }
+    }
+    board = b1
+    meta = m1
+
+    let mv2 = encode_move(from_sq: 48, to_sq: 40, promo: 0) // a7a6
+    let (b2, m2) = match validate_move(board, meta, mv2) {
+        Ok(x) => x,
+        Err(_) => {
+            assert(false)
+            (0, 0)
+        }
+    }
+    board = b2
+    meta = m2
+
+    let mv3 = encode_move(from_sq: 28, to_sq: 36, promo: 0) // e4e5
+    let (b3, m3) = match validate_move(board, meta, mv3) {
+        Ok(x) => x,
+        Err(_) => {
+            assert(false)
+            (0, 0)
+        }
+    }
+    board = b3
+    meta = m3
+
+    let mv4 = encode_move(from_sq: 51, to_sq: 35, promo: 0) // d7d5
+    let (b4, m4) = match validate_move(board, meta, mv4) {
+        Ok(x) => x,
+        Err(_) => {
+            assert(false)
+            (0, 0)
+        }
+    }
+
+    assert(meta_ep_file(m4) == 3)
+    assert(canonical_ep_file(b4, m4) == 3)
+}

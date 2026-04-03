@@ -1,0 +1,1263 @@
+use ingot::{
+    in_check,
+    is_square_attacked,
+    meta_black_king_sq,
+    meta_castling_rights,
+    meta_ep_file,
+    meta_halfmove_clock,
+    meta_side_to_move_is_white,
+    meta_white_king_sq,
+    piece_at,
+    clear_piece,
+    set_piece,
+    EndReason,
+    GameStatus,
+    CASTLE_BK,
+    CASTLE_BQ,
+    CASTLE_WK,
+    CASTLE_WQ,
+    EP_NONE,
+    PIECE_BB,
+    PIECE_BN,
+    PIECE_BP,
+    PIECE_BQ,
+    PIECE_BR,
+    PIECE_BK,
+    PIECE_EMPTY,
+    PIECE_WB,
+    PIECE_WK,
+    PIECE_WN,
+    PIECE_WP,
+    PIECE_WQ,
+    PIECE_WR,
+}
+
+use ingot::{abs_diff, is_black_piece, is_empty, is_white_piece, max_u8, piece_kind, sq, sq_file, sq_rank}
+
+fn path_clear_file(board_word: u256, from_file: u8, from_rank: u8, to_rank: u8) -> bool {
+    if from_rank == to_rank {
+        return true
+    }
+    let mut r = from_rank
+    if to_rank > from_rank {
+        while r + 1 < to_rank {
+            r += 1
+            if !is_empty(piece_at(board_word, sq(from_file, r))) {
+                return false
+            }
+        }
+    } else {
+        while r > to_rank + 1 {
+            r -= 1
+            if !is_empty(piece_at(board_word, sq(from_file, r))) {
+                return false
+            }
+        }
+    }
+    true
+}
+
+fn path_clear_rank(board_word: u256, from_rank: u8, from_file: u8, to_file: u8) -> bool {
+    if from_file == to_file {
+        return true
+    }
+    let mut f = from_file
+    if to_file > from_file {
+        while f + 1 < to_file {
+            f += 1
+            if !is_empty(piece_at(board_word, sq(f, from_rank))) {
+                return false
+            }
+        }
+    } else {
+        while f > to_file + 1 {
+            f -= 1
+            if !is_empty(piece_at(board_word, sq(f, from_rank))) {
+                return false
+            }
+        }
+    }
+    true
+}
+
+fn path_clear_diag(board_word: u256, from_file: u8, from_rank: u8, to_file: u8, to_rank: u8) -> bool {
+    let dx = abs_diff(to_file, from_file)
+    let dy = abs_diff(to_rank, from_rank)
+    if dx != dy || dx == 0 {
+        return false
+    }
+    let mut f = from_file
+    let mut r = from_rank
+    while abs_diff(f, to_file) > 1 {
+        if to_file > f {
+            f += 1
+        } else {
+            f -= 1
+        }
+        if to_rank > r {
+            r += 1
+        } else {
+            r -= 1
+        }
+        if !is_empty(piece_at(board_word, sq(f, r))) {
+            return false
+        }
+    }
+    true
+}
+
+fn promo_piece(is_white: bool, promo: u8) -> u8 {
+    if is_white {
+        if promo == 1 { PIECE_WN }
+        else if promo == 2 { PIECE_WB }
+        else if promo == 3 { PIECE_WR }
+        else { PIECE_WQ }
+    } else {
+        if promo == 1 { PIECE_BN }
+        else if promo == 2 { PIECE_BB }
+        else if promo == 3 { PIECE_BR }
+        else { PIECE_BQ }
+    }
+}
+
+fn probe_legal_move(board_word: u256, meta_word: u256, from_sq: u8, to_sq: u8, promo: u8) -> bool {
+    let stm_white = meta_side_to_move_is_white(meta_word)
+
+    let moving_piece = piece_at(board_word, from_sq)
+    if moving_piece == PIECE_EMPTY {
+        return false
+    }
+    if stm_white {
+        if !is_white_piece(moving_piece) {
+            return false
+        }
+    } else {
+        if !is_black_piece(moving_piece) {
+            return false
+        }
+    }
+
+    let dest_piece = piece_at(board_word, to_sq)
+    if dest_piece != PIECE_EMPTY {
+        if stm_white {
+            if is_white_piece(dest_piece) {
+                return false
+            }
+        } else {
+            if is_black_piece(dest_piece) {
+                return false
+            }
+        }
+        // Capturing the king is never a legal chess move.
+        if piece_kind(dest_piece) == 6 {
+            return false
+        }
+    }
+
+    let kind = piece_kind(moving_piece)
+
+    let from_file = sq_file(from_sq)
+    let from_rank = sq_rank(from_sq)
+    let to_file = sq_file(to_sq)
+    let to_rank = sq_rank(to_sq)
+    let dx = abs_diff(to_file, from_file)
+    let dy = abs_diff(to_rank, from_rank)
+
+    let mut next_board = board_word
+
+    // Used for self-check probing.
+    let mut king_sq_after: u8 = if stm_white { meta_white_king_sq(meta_word) } else { meta_black_king_sq(meta_word) }
+
+    // Pawn
+    if kind == 1 {
+        if stm_white {
+            // Forward push.
+            if to_file == from_file && to_rank == from_rank + 1 {
+                if dest_piece != PIECE_EMPTY {
+                    return false
+                }
+                if to_rank == 7 {
+                    if promo == 0 || promo > 4 {
+                        return false
+                    }
+                    next_board = clear_piece(next_board, from_sq)
+                    next_board = set_piece(next_board, to_sq, promo_piece(true, promo))
+                } else {
+                    if promo != 0 {
+                        return false
+                    }
+                    next_board = clear_piece(next_board, from_sq)
+                    next_board = set_piece(next_board, to_sq, PIECE_WP)
+                }
+            }
+            // Double push.
+            else if to_file == from_file && from_rank == 1 && to_rank == 3 {
+                if promo != 0 {
+                    return false
+                }
+                if dest_piece != PIECE_EMPTY {
+                    return false
+                }
+                if piece_at(board_word, from_sq + 8) != PIECE_EMPTY {
+                    return false
+                }
+                next_board = clear_piece(next_board, from_sq)
+                next_board = set_piece(next_board, to_sq, PIECE_WP)
+            }
+            // Capture / en passant.
+            else if dy == 1 && dx == 1 && to_rank == from_rank + 1 {
+                if dest_piece != PIECE_EMPTY {
+                    if to_rank == 7 {
+                        if promo == 0 || promo > 4 {
+                            return false
+                        }
+                        next_board = clear_piece(next_board, from_sq)
+                        next_board = set_piece(next_board, to_sq, promo_piece(true, promo))
+                    } else {
+                        if promo != 0 {
+                            return false
+                        }
+                        next_board = clear_piece(next_board, from_sq)
+                        next_board = set_piece(next_board, to_sq, PIECE_WP)
+                    }
+                } else {
+                    // En passant capture.
+                    if promo != 0 {
+                        return false
+                    }
+                    let ep_file = meta_ep_file(meta_word)
+                    if ep_file == EP_NONE {
+                        return false
+                    }
+                    let ep_sq = sq(ep_file, 5)
+                    if to_sq != ep_sq {
+                        return false
+                    }
+                    let victim_sq = to_sq - 8
+                    let victim_piece = piece_at(board_word, victim_sq)
+                    if !(is_black_piece(victim_piece) && piece_kind(victim_piece) == 1) {
+                        return false
+                    }
+                    next_board = clear_piece(next_board, from_sq)
+                    next_board = clear_piece(next_board, victim_sq)
+                    next_board = set_piece(next_board, to_sq, PIECE_WP)
+                }
+            } else {
+                return false
+            }
+        } else {
+            // Black pawn.
+            // Forward push.
+            if to_file == from_file && from_rank == to_rank + 1 {
+                if dest_piece != PIECE_EMPTY {
+                    return false
+                }
+                if to_rank == 0 {
+                    if promo == 0 || promo > 4 {
+                        return false
+                    }
+                    next_board = clear_piece(next_board, from_sq)
+                    next_board = set_piece(next_board, to_sq, promo_piece(false, promo))
+                } else {
+                    if promo != 0 {
+                        return false
+                    }
+                    next_board = clear_piece(next_board, from_sq)
+                    next_board = set_piece(next_board, to_sq, PIECE_BP)
+                }
+            }
+            // Double push.
+            else if to_file == from_file && from_rank == 6 && to_rank == 4 {
+                if promo != 0 {
+                    return false
+                }
+                if dest_piece != PIECE_EMPTY {
+                    return false
+                }
+                if piece_at(board_word, from_sq - 8) != PIECE_EMPTY {
+                    return false
+                }
+                next_board = clear_piece(next_board, from_sq)
+                next_board = set_piece(next_board, to_sq, PIECE_BP)
+            }
+            // Capture / en passant.
+            else if dy == 1 && dx == 1 && from_rank == to_rank + 1 {
+                if dest_piece != PIECE_EMPTY {
+                    if to_rank == 0 {
+                        if promo == 0 || promo > 4 {
+                            return false
+                        }
+                        next_board = clear_piece(next_board, from_sq)
+                        next_board = set_piece(next_board, to_sq, promo_piece(false, promo))
+                    } else {
+                        if promo != 0 {
+                            return false
+                        }
+                        next_board = clear_piece(next_board, from_sq)
+                        next_board = set_piece(next_board, to_sq, PIECE_BP)
+                    }
+                } else {
+                    // En passant capture.
+                    if promo != 0 {
+                        return false
+                    }
+                    let ep_file = meta_ep_file(meta_word)
+                    if ep_file == EP_NONE {
+                        return false
+                    }
+                    let ep_sq = sq(ep_file, 2)
+                    if to_sq != ep_sq {
+                        return false
+                    }
+                    let victim_sq = to_sq + 8
+                    let victim_piece = piece_at(board_word, victim_sq)
+                    if !(is_white_piece(victim_piece) && piece_kind(victim_piece) == 1) {
+                        return false
+                    }
+                    next_board = clear_piece(next_board, from_sq)
+                    next_board = clear_piece(next_board, victim_sq)
+                    next_board = set_piece(next_board, to_sq, PIECE_BP)
+                }
+            } else {
+                return false
+            }
+        }
+    }
+
+    // Knight
+    else if kind == 2 {
+        if promo != 0 {
+            return false
+        }
+        if !((dx == 1 && dy == 2) || (dx == 2 && dy == 1)) {
+            return false
+        }
+        next_board = clear_piece(next_board, from_sq)
+        next_board = set_piece(next_board, to_sq, moving_piece)
+    }
+
+    // Bishop
+    else if kind == 3 {
+        if promo != 0 {
+            return false
+        }
+        if dx != dy || dx == 0 {
+            return false
+        }
+        if !path_clear_diag(board_word, from_file, from_rank, to_file, to_rank) {
+            return false
+        }
+        next_board = clear_piece(next_board, from_sq)
+        next_board = set_piece(next_board, to_sq, moving_piece)
+    }
+
+    // Rook
+    else if kind == 4 {
+        if promo != 0 {
+            return false
+        }
+        if from_file == to_file {
+            if !path_clear_file(board_word, from_file, from_rank, to_rank) {
+                return false
+            }
+        } else if from_rank == to_rank {
+            if !path_clear_rank(board_word, from_rank, from_file, to_file) {
+                return false
+            }
+        } else {
+            return false
+        }
+        next_board = clear_piece(next_board, from_sq)
+        next_board = set_piece(next_board, to_sq, moving_piece)
+    }
+
+    // Queen
+    else if kind == 5 {
+        if promo != 0 {
+            return false
+        }
+        if dx == dy && dx != 0 {
+            if !path_clear_diag(board_word, from_file, from_rank, to_file, to_rank) {
+                return false
+            }
+        } else if from_file == to_file {
+            if !path_clear_file(board_word, from_file, from_rank, to_rank) {
+                return false
+            }
+        } else if from_rank == to_rank {
+            if !path_clear_rank(board_word, from_rank, from_file, to_file) {
+                return false
+            }
+        } else {
+            return false
+        }
+        next_board = clear_piece(next_board, from_sq)
+        next_board = set_piece(next_board, to_sq, moving_piece)
+    }
+
+    // King
+    else if kind == 6 {
+        if promo != 0 {
+            return false
+        }
+
+        // Castling candidate.
+        if dx == 2 && dy == 0 {
+            let rights = meta_castling_rights(meta_word)
+            if stm_white {
+                if from_sq != 4 {
+                    return false
+                }
+                if to_sq == 6 {
+                    if (rights & CASTLE_WK) == 0 {
+                        return false
+                    }
+                    if piece_at(board_word, 7) != PIECE_WR {
+                        return false
+                    }
+                    if piece_at(board_word, 5) != PIECE_EMPTY || piece_at(board_word, 6) != PIECE_EMPTY {
+                        return false
+                    }
+                    if in_check(board_word, meta_word, true) {
+                        return false
+                    }
+                    if is_square_attacked(board_word, meta_word, 5, false) || is_square_attacked(board_word, meta_word, 6, false) {
+                        return false
+                    }
+                    next_board = clear_piece(next_board, 4)
+                    next_board = clear_piece(next_board, 7)
+                    next_board = set_piece(next_board, 6, moving_piece)
+                    next_board = set_piece(next_board, 5, PIECE_WR)
+                    king_sq_after = 6
+                } else if to_sq == 2 {
+                    if (rights & CASTLE_WQ) == 0 {
+                        return false
+                    }
+                    if piece_at(board_word, 0) != PIECE_WR {
+                        return false
+                    }
+                    if piece_at(board_word, 1) != PIECE_EMPTY || piece_at(board_word, 2) != PIECE_EMPTY || piece_at(board_word, 3) != PIECE_EMPTY {
+                        return false
+                    }
+                    if in_check(board_word, meta_word, true) {
+                        return false
+                    }
+                    if is_square_attacked(board_word, meta_word, 3, false) || is_square_attacked(board_word, meta_word, 2, false) {
+                        return false
+                    }
+                    next_board = clear_piece(next_board, 4)
+                    next_board = clear_piece(next_board, 0)
+                    next_board = set_piece(next_board, 2, moving_piece)
+                    next_board = set_piece(next_board, 3, PIECE_WR)
+                    king_sq_after = 2
+                } else {
+                    return false
+                }
+            } else {
+                if from_sq != 60 {
+                    return false
+                }
+                if to_sq == 62 {
+                    if (rights & CASTLE_BK) == 0 {
+                        return false
+                    }
+                    if piece_at(board_word, 63) != PIECE_BR {
+                        return false
+                    }
+                    if piece_at(board_word, 61) != PIECE_EMPTY || piece_at(board_word, 62) != PIECE_EMPTY {
+                        return false
+                    }
+                    if in_check(board_word, meta_word, false) {
+                        return false
+                    }
+                    if is_square_attacked(board_word, meta_word, 61, true) || is_square_attacked(board_word, meta_word, 62, true) {
+                        return false
+                    }
+                    next_board = clear_piece(next_board, 60)
+                    next_board = clear_piece(next_board, 63)
+                    next_board = set_piece(next_board, 62, moving_piece)
+                    next_board = set_piece(next_board, 61, PIECE_BR)
+                    king_sq_after = 62
+                } else if to_sq == 58 {
+                    if (rights & CASTLE_BQ) == 0 {
+                        return false
+                    }
+                    if piece_at(board_word, 56) != PIECE_BR {
+                        return false
+                    }
+                    if piece_at(board_word, 57) != PIECE_EMPTY || piece_at(board_word, 58) != PIECE_EMPTY || piece_at(board_word, 59) != PIECE_EMPTY {
+                        return false
+                    }
+                    if in_check(board_word, meta_word, false) {
+                        return false
+                    }
+                    if is_square_attacked(board_word, meta_word, 59, true) || is_square_attacked(board_word, meta_word, 58, true) {
+                        return false
+                    }
+                    next_board = clear_piece(next_board, 60)
+                    next_board = clear_piece(next_board, 56)
+                    next_board = set_piece(next_board, 58, moving_piece)
+                    next_board = set_piece(next_board, 59, PIECE_BR)
+                    king_sq_after = 58
+                } else {
+                    return false
+                }
+            }
+        } else {
+            // Normal king move.
+            if max_u8(dx, dy) != 1 {
+                return false
+            }
+            next_board = clear_piece(next_board, from_sq)
+            next_board = set_piece(next_board, to_sq, moving_piece)
+            king_sq_after = to_sq
+        }
+    } else {
+        return false
+    }
+
+    // Self-check rejection.
+    if stm_white {
+        if is_square_attacked(next_board, meta_word, king_sq_after, false) {
+            return false
+        }
+    } else {
+        if is_square_attacked(next_board, meta_word, king_sq_after, true) {
+            return false
+        }
+    }
+
+    true
+}
+
+pub fn has_any_legal_move(board_word: u256, meta_word: u256) -> bool {
+    let stm_white = meta_side_to_move_is_white(meta_word)
+
+    let mut from_sq: u8 = 0
+    let mut found = false
+    while from_sq < 64 && !found {
+        let p = piece_at(board_word, from_sq)
+        if p != PIECE_EMPTY {
+            let mut correct_color = false
+            if stm_white {
+                if is_white_piece(p) {
+                    correct_color = true
+                }
+            } else {
+                if is_black_piece(p) {
+                    correct_color = true
+                }
+            }
+
+            if correct_color {
+                let kind = piece_kind(p)
+                let f = sq_file(from_sq)
+                let r = sq_rank(from_sq)
+
+                // Pawn
+                if kind == 1 {
+                    if stm_white {
+                        if r < 7 {
+                            // Push.
+                            let to_sq = from_sq + 8
+                            let to_rank = r + 1
+                            if to_rank == 7 {
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 1) { found = true }
+                                if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 2) { found = true }
+                                if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 3) { found = true }
+                                if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 4) { found = true }
+                            } else {
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                            }
+                        }
+                        // Double push.
+                        if !found && r == 1 {
+                            if probe_legal_move(board_word, meta_word, from_sq, from_sq + 16, 0) { found = true }
+                        }
+                        // Captures (including EP).
+                        if !found && r < 7 {
+                            let to_rank = r + 1
+                            if f > 0 {
+                                let to_sq = from_sq + 7
+                                if to_rank == 7 {
+                                    if probe_legal_move(board_word, meta_word, from_sq, to_sq, 1) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 2) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 3) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 4) { found = true }
+                                } else {
+                                    if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                }
+                            }
+                            if !found && f < 7 {
+                                let to_sq = from_sq + 9
+                                if to_rank == 7 {
+                                    if probe_legal_move(board_word, meta_word, from_sq, to_sq, 1) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 2) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 3) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 4) { found = true }
+                                } else {
+                                    if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                }
+                            }
+                        }
+                    } else {
+                        // Black pawn.
+                        if r > 0 {
+                            // Push.
+                            let to_sq = from_sq - 8
+                            let to_rank = r - 1
+                            if to_rank == 0 {
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 1) { found = true }
+                                if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 2) { found = true }
+                                if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 3) { found = true }
+                                if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 4) { found = true }
+                            } else {
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                            }
+                        }
+                        // Double push.
+                        if !found && r == 6 {
+                            if probe_legal_move(board_word, meta_word, from_sq, from_sq - 16, 0) { found = true }
+                        }
+                        // Captures (including EP).
+                        if !found && r > 0 {
+                            let to_rank = r - 1
+                            if f > 0 {
+                                let to_sq = from_sq - 9
+                                if to_rank == 0 {
+                                    if probe_legal_move(board_word, meta_word, from_sq, to_sq, 1) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 2) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 3) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 4) { found = true }
+                                } else {
+                                    if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                }
+                            }
+                            if !found && f < 7 {
+                                let to_sq = from_sq - 7
+                                if to_rank == 0 {
+                                    if probe_legal_move(board_word, meta_word, from_sq, to_sq, 1) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 2) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 3) { found = true }
+                                    if !found && probe_legal_move(board_word, meta_word, from_sq, to_sq, 4) { found = true }
+                                } else {
+                                    if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Knight
+                else if kind == 2 {
+                    if f <= 6 && r <= 5 { if probe_legal_move(board_word, meta_word, from_sq, from_sq + 17, 0) { found = true } }
+                    if !found && f >= 1 && r <= 5 { if probe_legal_move(board_word, meta_word, from_sq, from_sq + 15, 0) { found = true } }
+                    if !found && f <= 5 && r <= 6 { if probe_legal_move(board_word, meta_word, from_sq, from_sq + 10, 0) { found = true } }
+                    if !found && f >= 2 && r <= 6 { if probe_legal_move(board_word, meta_word, from_sq, from_sq + 6, 0) { found = true } }
+                    if !found && f <= 5 && r >= 1 { if probe_legal_move(board_word, meta_word, from_sq, from_sq - 6, 0) { found = true } }
+                    if !found && f >= 2 && r >= 1 { if probe_legal_move(board_word, meta_word, from_sq, from_sq - 10, 0) { found = true } }
+                    if !found && f <= 6 && r >= 2 { if probe_legal_move(board_word, meta_word, from_sq, from_sq - 15, 0) { found = true } }
+                    if !found && f >= 1 && r >= 2 { if probe_legal_move(board_word, meta_word, from_sq, from_sq - 17, 0) { found = true } }
+                }
+
+                // Bishop / rook / queen sliders
+                else if kind == 3 || kind == 4 || kind == 5 {
+                    let diag = kind == 3 || kind == 5
+                    let ortho = kind == 4 || kind == 5
+
+                    if diag {
+                        // NE
+                        {
+                            let mut ff = f
+                            let mut rr = r
+                            while ff < 7 && rr < 7 && !found {
+                                ff += 1
+                                rr += 1
+                                let to_sq = sq(ff, rr)
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                            }
+                        }
+                        // NW
+                        {
+                            let mut ff = f
+                            let mut rr = r
+                            while ff > 0 && rr < 7 && !found {
+                                ff -= 1
+                                rr += 1
+                                let to_sq = sq(ff, rr)
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                            }
+                        }
+                        // SE
+                        {
+                            let mut ff = f
+                            let mut rr = r
+                            while ff < 7 && rr > 0 && !found {
+                                ff += 1
+                                rr -= 1
+                                let to_sq = sq(ff, rr)
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                            }
+                        }
+                        // SW
+                        {
+                            let mut ff = f
+                            let mut rr = r
+                            while ff > 0 && rr > 0 && !found {
+                                ff -= 1
+                                rr -= 1
+                                let to_sq = sq(ff, rr)
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                            }
+                        }
+                    }
+
+                    if ortho {
+                        // North
+                        {
+                            let mut rr = r
+                            while rr < 7 && !found {
+                                rr += 1
+                                let to_sq = sq(f, rr)
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                            }
+                        }
+                        // South
+                        {
+                            let mut rr = r
+                            while rr > 0 && !found {
+                                rr -= 1
+                                let to_sq = sq(f, rr)
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                            }
+                        }
+                        // East
+                        {
+                            let mut ff = f
+                            while ff < 7 && !found {
+                                ff += 1
+                                let to_sq = sq(ff, r)
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                            }
+                        }
+                        // West
+                        {
+                            let mut ff = f
+                            while ff > 0 && !found {
+                                ff -= 1
+                                let to_sq = sq(ff, r)
+                                if probe_legal_move(board_word, meta_word, from_sq, to_sq, 0) { found = true }
+                                if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                            }
+                        }
+                    }
+                }
+
+                // King
+                else if kind == 6 {
+                    // Adjacent squares.
+                    if r < 7 { if probe_legal_move(board_word, meta_word, from_sq, from_sq + 8, 0) { found = true } }
+                    if !found && r > 0 { if probe_legal_move(board_word, meta_word, from_sq, from_sq - 8, 0) { found = true } }
+                    if !found && f < 7 { if probe_legal_move(board_word, meta_word, from_sq, from_sq + 1, 0) { found = true } }
+                    if !found && f > 0 { if probe_legal_move(board_word, meta_word, from_sq, from_sq - 1, 0) { found = true } }
+                    if !found && f < 7 && r < 7 { if probe_legal_move(board_word, meta_word, from_sq, from_sq + 9, 0) { found = true } }
+                    if !found && f > 0 && r < 7 { if probe_legal_move(board_word, meta_word, from_sq, from_sq + 7, 0) { found = true } }
+                    if !found && f < 7 && r > 0 { if probe_legal_move(board_word, meta_word, from_sq, from_sq - 7, 0) { found = true } }
+                    if !found && f > 0 && r > 0 { if probe_legal_move(board_word, meta_word, from_sq, from_sq - 9, 0) { found = true } }
+
+                    // Castling candidates (probe enforces all rules).
+                    if !found {
+                        let rights = meta_castling_rights(meta_word)
+                        if stm_white {
+                            if from_sq == 4 {
+                                if (rights & CASTLE_WK) != 0 {
+                                    if probe_legal_move(board_word, meta_word, 4, 6, 0) { found = true }
+                                }
+                                if !found && (rights & CASTLE_WQ) != 0 {
+                                    if probe_legal_move(board_word, meta_word, 4, 2, 0) { found = true }
+                                }
+                            }
+                        } else {
+                            if from_sq == 60 {
+                                if (rights & CASTLE_BK) != 0 {
+                                    if probe_legal_move(board_word, meta_word, 60, 62, 0) { found = true }
+                                }
+                                if !found && (rights & CASTLE_BQ) != 0 {
+                                    if probe_legal_move(board_word, meta_word, 60, 58, 0) { found = true }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        from_sq += 1
+    }
+    found
+}
+
+pub fn classify_terminal_state(board_word: u256, meta_word: u256) -> (GameStatus, EndReason) {
+    // v0: checkmate/stalemate + dead-position + 75-move automatic draw.
+    let stm_white = meta_side_to_move_is_white(meta_word)
+
+    if !has_any_legal_move(board_word, meta_word) {
+        if in_check(board_word, meta_word, stm_white) {
+            if stm_white {
+                (GameStatus::BlackWon, EndReason::Checkmate)
+            } else {
+                (GameStatus::WhiteWon, EndReason::Checkmate)
+            }
+        } else {
+            (GameStatus::Draw, EndReason::Stalemate)
+        }
+    } else {
+        // Dead position (insufficient mating material) is an immediate draw.
+        if is_dead_position(board_word) {
+            (GameStatus::Draw, EndReason::DeadPosition)
+        }
+        // Automatic 75-move draw (150 halfmoves) if the game hasn't already ended.
+        else if meta_halfmove_clock(meta_word) >= 150 {
+            (GameStatus::Draw, EndReason::SeventyFiveMove)
+        } else {
+            (GameStatus::Ongoing, EndReason::None)
+        }
+    }
+}
+
+fn is_dead_position(board_word: u256) -> bool {
+    let mut wp: u8 = 0
+    let mut wn: u8 = 0
+    let mut wb: u8 = 0
+    let mut wr: u8 = 0
+    let mut wq: u8 = 0
+
+    let mut bp: u8 = 0
+    let mut bn: u8 = 0
+    let mut bb: u8 = 0
+    let mut br: u8 = 0
+    let mut bq: u8 = 0
+
+    // Bishop-square colors present on the board:
+    // bit0 => dark squares, bit1 => light squares.
+    let mut bishop_colors: u8 = 0
+
+    let mut sq0: u8 = 0
+    while sq0 < 64 {
+        let p = piece_at(board_word, sq0)
+        if p != PIECE_EMPTY {
+            let kind = piece_kind(p)
+            if kind != 6 {
+                if is_white_piece(p) {
+                    if kind == 1 { wp += 1 }
+                    else if kind == 2 { wn += 1 }
+                    else if kind == 3 {
+                        wb += 1
+                        let c = (sq_file(sq0) + sq_rank(sq0)) & 1
+                        if c == 0 { bishop_colors |= 1 } else { bishop_colors |= 2 }
+                    }
+                    else if kind == 4 { wr += 1 }
+                    else if kind == 5 { wq += 1 }
+                } else if is_black_piece(p) {
+                    if kind == 1 { bp += 1 }
+                    else if kind == 2 { bn += 1 }
+                    else if kind == 3 {
+                        bb += 1
+                        let c = (sq_file(sq0) + sq_rank(sq0)) & 1
+                        if c == 0 { bishop_colors |= 1 } else { bishop_colors |= 2 }
+                    }
+                    else if kind == 4 { br += 1 }
+                    else if kind == 5 { bq += 1 }
+                }
+            }
+        }
+        sq0 += 1
+    }
+
+    // Any pawns, rooks, or queens => checkmate is possible in principle (or via promotion).
+    if wp != 0 || bp != 0 || wr != 0 || br != 0 || wq != 0 || bq != 0 {
+        return false
+    }
+
+    let total_knights = wn + bn
+    let total_bishops = wb + bb
+
+    // K vs K
+    if total_knights == 0 && total_bishops == 0 {
+        return true
+    }
+
+    // Knights present:
+    // only K+N vs K is dead. (Any additional pieces can enable selfmate.)
+    if total_knights != 0 {
+        if total_bishops != 0 {
+            return false
+        }
+        return total_knights == 1
+    }
+
+    // Bishops only (no knights): dead iff all bishops are on the same color squares.
+    // This includes K+B vs K, K+B vs K+B (same-colored bishops), and promoted-bishop edge cases.
+    return (bishop_colors & 3) != 3
+}
+
+// --- tests ---
+
+use ingot::{
+    meta_set_black_king_sq,
+    meta_set_castling_rights,
+    meta_set_ep_file,
+    meta_set_fullmove_number,
+    meta_set_halfmove_clock,
+    meta_set_side_to_move,
+    meta_set_white_king_sq,
+}
+
+fn meta_custom(
+    stm_white: bool,
+    rights: u8,
+    ep_file: u8,
+    halfmove: u16,
+    fullmove: u16,
+    wk: u8,
+    bk: u8,
+) -> u256 {
+    let mut meta: u256 = 0
+    meta = meta_set_side_to_move(meta, stm_white)
+    meta = meta_set_castling_rights(meta, rights)
+    meta = meta_set_ep_file(meta, ep_file)
+    meta = meta_set_halfmove_clock(meta, halfmove)
+    meta = meta_set_fullmove_number(meta, fullmove)
+    meta = meta_set_white_king_sq(meta, wk)
+    meta = meta_set_black_king_sq(meta, bk)
+    meta
+}
+
+#[test]
+fn test_terminal_stalemate_and_checkmate() {
+    // Stalemate: 7k/5Q2/6K1/8/8/8/8/8 b - - 0 1
+    let mut board: u256 = 0
+    board = set_piece(board, 63, PIECE_BK) // h8
+    board = set_piece(board, 53, PIECE_WQ) // f7
+    board = set_piece(board, 46, PIECE_WK) // g6
+    let meta = meta_custom(
+        stm_white: false,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 46,
+        bk: 63,
+    )
+    let (status, reason) = classify_terminal_state(board, meta)
+    match (status, reason) {
+        (GameStatus::Draw, EndReason::Stalemate) => {}
+        _ => assert(false)
+    }
+
+    // Checkmate: 7k/6Q1/6K1/8/8/8/8/8 b - - 0 1
+    let mut board2: u256 = 0
+    board2 = set_piece(board2, 63, PIECE_BK) // h8
+    board2 = set_piece(board2, 54, PIECE_WQ) // g7
+    board2 = set_piece(board2, 46, PIECE_WK) // g6
+    let meta2 = meta_custom(
+        stm_white: false,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 46,
+        bk: 63,
+    )
+    let (status2, reason2) = classify_terminal_state(board2, meta2)
+    match (status2, reason2) {
+        (GameStatus::WhiteWon, EndReason::Checkmate) => {}
+        _ => assert(false)
+    }
+}
+
+#[test]
+fn test_terminal_75_move_draw() {
+    // Non-dead position; the 75-move rule is automatic.
+    let mut board: u256 = 0
+    board = set_piece(board, 4, PIECE_WK) // e1
+    board = set_piece(board, 0, PIECE_WR) // a1
+    board = set_piece(board, 60, PIECE_BK) // e8
+    let meta = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 150,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let (status, reason) = classify_terminal_state(board, meta)
+    match (status, reason) {
+        (GameStatus::Draw, EndReason::SeventyFiveMove) => {}
+        _ => assert(false)
+    }
+}
+
+#[test]
+fn test_terminal_dead_position_insufficient_material() {
+    // K vs K.
+    let mut kk: u256 = 0
+    kk = set_piece(kk, 4, PIECE_WK) // e1
+    kk = set_piece(kk, 60, PIECE_BK) // e8
+    let meta = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let (s, r) = classify_terminal_state(kk, meta)
+    match (s, r) {
+        (GameStatus::Draw, EndReason::DeadPosition) => {}
+        _ => assert(false)
+    }
+
+    // K+N vs K.
+    let mut kn: u256 = 0
+    kn = set_piece(kn, 4, PIECE_WK) // e1
+    kn = set_piece(kn, 1, PIECE_WN) // b1
+    kn = set_piece(kn, 60, PIECE_BK) // e8
+    let meta2 = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let (s2, r2) = classify_terminal_state(kn, meta2)
+    match (s2, r2) {
+        (GameStatus::Draw, EndReason::DeadPosition) => {}
+        _ => assert(false)
+    }
+
+    // K+B vs K.
+    let mut kb: u256 = 0
+    kb = set_piece(kb, 4, PIECE_WK) // e1
+    kb = set_piece(kb, 2, PIECE_WB) // c1
+    kb = set_piece(kb, 60, PIECE_BK) // e8
+    let meta3 = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let (s3, r3) = classify_terminal_state(kb, meta3)
+    match (s3, r3) {
+        (GameStatus::Draw, EndReason::DeadPosition) => {}
+        _ => assert(false)
+    }
+
+    // K+BB(same color) vs K.
+    let mut kbb: u256 = 0
+    kbb = set_piece(kbb, 4, PIECE_WK) // e1
+    kbb = set_piece(kbb, 2, PIECE_WB) // c1 (dark)
+    kbb = set_piece(kbb, 20, PIECE_WB) // e3 (dark)
+    kbb = set_piece(kbb, 60, PIECE_BK) // e8
+    let meta4 = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let (s4, r4) = classify_terminal_state(kbb, meta4)
+    match (s4, r4) {
+        (GameStatus::Draw, EndReason::DeadPosition) => {}
+        _ => assert(false)
+    }
+
+    // K+N vs K+N should not be an automatic dead position.
+    let mut knkn: u256 = 0
+    knkn = set_piece(knkn, 4, PIECE_WK) // e1
+    knkn = set_piece(knkn, 1, PIECE_WN) // b1
+    knkn = set_piece(knkn, 60, PIECE_BK) // e8
+    knkn = set_piece(knkn, 57, PIECE_BN) // b8
+    let meta5 = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let (s5, r5) = classify_terminal_state(knkn, meta5)
+    match (s5, r5) {
+        (GameStatus::Ongoing, EndReason::None) => {}
+        _ => assert(false)
+    }
+}
+
+#[test]
+fn test_terminal_dead_position_two_knights_vs_king_is_not_dead() {
+    // 2 knights can still checkmate a bare king with help, so this is not a dead position.
+    let mut knn: u256 = 0
+    knn = set_piece(knn, 4, PIECE_WK) // e1
+    knn = set_piece(knn, 1, PIECE_WN) // b1
+    knn = set_piece(knn, 6, PIECE_WN) // g1
+    knn = set_piece(knn, 60, PIECE_BK) // e8
+    let meta = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let (s, r) = classify_terminal_state(knn, meta)
+    match (s, r) {
+        (GameStatus::Ongoing, EndReason::None) => {}
+        _ => assert(false)
+    }
+}
+
+#[test]
+fn test_terminal_checkmate_possible_with_two_knights() {
+    // Checkmate example: 7k/5K2/5NN1/8/8/8/8/8 b - - 0 1
+    // black king: h8 (63)
+    // white king: f7 (53)
+    // white knights: f6 (45), g6 (46)
+    let mut board: u256 = 0
+    board = set_piece(board, 63, PIECE_BK)
+    board = set_piece(board, 53, PIECE_WK)
+    board = set_piece(board, 45, PIECE_WN)
+    board = set_piece(board, 46, PIECE_WN)
+    let meta = meta_custom(
+        stm_white: false,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 53,
+        bk: 63,
+    )
+    let (s, r) = classify_terminal_state(board, meta)
+    match (s, r) {
+        (GameStatus::WhiteWon, EndReason::Checkmate) => {}
+        _ => assert(false)
+    }
+}
+
+#[test]
+fn test_terminal_checkmate_possible_with_one_knight_each() {
+    // Checkmate example: kn6/2N5/1K6/8/8/8/8/8 b - - 0 1
+    // black king: a8 (56)
+    // black knight: b8 (57)
+    // white king: b6 (41)
+    // white knight: c7 (50)
+    let mut board: u256 = 0
+    board = set_piece(board, 56, PIECE_BK)
+    board = set_piece(board, 57, PIECE_BN)
+    board = set_piece(board, 41, PIECE_WK)
+    board = set_piece(board, 50, PIECE_WN)
+    let meta = meta_custom(
+        stm_white: false,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 41,
+        bk: 56,
+    )
+    let (s, r) = classify_terminal_state(board, meta)
+    match (s, r) {
+        (GameStatus::WhiteWon, EndReason::Checkmate) => {}
+        _ => assert(false)
+    }
+}
+
+#[test]
+fn test_terminal_checkmate_possible_with_bishop_against_knight() {
+    // Checkmate example: kn6/1B6/1K6/8/8/8/8/8 b - - 0 1
+    // black king: a8 (56)
+    // black knight: b8 (57)
+    // white king: b6 (41)
+    // white bishop: b7 (49)
+    let mut board: u256 = 0
+    board = set_piece(board, 56, PIECE_BK)
+    board = set_piece(board, 57, PIECE_BN)
+    board = set_piece(board, 41, PIECE_WK)
+    board = set_piece(board, 49, PIECE_WB)
+    let meta = meta_custom(
+        stm_white: false,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 41,
+        bk: 56,
+    )
+    let (s, r) = classify_terminal_state(board, meta)
+    match (s, r) {
+        (GameStatus::WhiteWon, EndReason::Checkmate) => {}
+        _ => assert(false)
+    }
+}
+
+#[test]
+fn test_terminal_dead_position_bishops_same_color_only() {
+    // K+B vs K+B with bishops on the same color squares should be dead.
+    let mut board: u256 = 0
+    board = set_piece(board, 4, PIECE_WK) // e1
+    board = set_piece(board, 2, PIECE_WB) // c1 (dark)
+    board = set_piece(board, 60, PIECE_BK) // e8
+    board = set_piece(board, 61, PIECE_BB) // f8 (dark)
+    let meta = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let (s, r) = classify_terminal_state(board, meta)
+    match (s, r) {
+        (GameStatus::Draw, EndReason::DeadPosition) => {}
+        _ => assert(false)
+    }
+
+    // Opposite-colored bishops: not an automatic dead position.
+    let mut board2: u256 = 0
+    board2 = set_piece(board2, 4, PIECE_WK) // e1
+    board2 = set_piece(board2, 2, PIECE_WB) // c1 (dark)
+    board2 = set_piece(board2, 60, PIECE_BK) // e8
+    board2 = set_piece(board2, 58, PIECE_BB) // c8 (light)
+    let meta2 = meta_custom(
+        stm_white: true,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 4,
+        bk: 60,
+    )
+    let (s2, r2) = classify_terminal_state(board2, meta2)
+    match (s2, r2) {
+        (GameStatus::Ongoing, EndReason::None) => {}
+        _ => assert(false)
+    }
+}

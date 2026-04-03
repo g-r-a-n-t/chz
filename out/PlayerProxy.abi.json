@@ -1,0 +1,86 @@
+[
+  {
+    "type": "function",
+    "name": "submit",
+    "inputs": [
+      {
+        "name": "game",
+        "type": "address"
+      },
+      {
+        "name": "mv",
+        "type": "uint32"
+      },
+      {
+        "name": "claim_flags",
+        "type": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claim",
+    "inputs": [
+      {
+        "name": "game",
+        "type": "address"
+      },
+      {
+        "name": "reason",
+        "type": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "resign",
+    "inputs": [
+      {
+        "name": "game",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "withdraw",
+    "inputs": [
+      {
+        "name": "game",
+        "type": "address"
+      },
+      {
+        "name": "to",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  }
+]

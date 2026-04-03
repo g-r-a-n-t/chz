@@ -1,0 +1,50 @@
+use ingot::PIECE_EMPTY
+
+pub fn sq_file(sq: u8) -> u8 {
+    sq & 7
+}
+
+pub fn sq_rank(sq: u8) -> u8 {
+    sq >> 3
+}
+
+pub fn sq(file: u8, rank: u8) -> u8 {
+    file + (rank * 8)
+}
+
+pub fn abs_diff(a: u8, b: u8) -> u8 {
+    if a >= b {
+        a - b
+    } else {
+        b - a
+    }
+}
+
+pub fn max_u8(a: u8, b: u8) -> u8 {
+    if a >= b { a } else { b }
+}
+
+pub fn is_empty(piece: u8) -> bool {
+    piece == PIECE_EMPTY
+}
+
+pub fn is_white_piece(piece: u8) -> bool {
+    piece != PIECE_EMPTY && piece < 8
+}
+
+pub fn is_black_piece(piece: u8) -> bool {
+    piece >= 8
+}
+
+pub fn same_color(a: u8, b: u8) -> bool {
+    if is_empty(a) || is_empty(b) {
+        false
+    } else {
+        (is_white_piece(a) && is_white_piece(b)) || (is_black_piece(a) && is_black_piece(b))
+    }
+}
+
+pub fn piece_kind(piece: u8) -> u8 {
+    piece & 0x7
+}
+

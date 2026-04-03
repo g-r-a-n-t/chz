@@ -1,0 +1,126 @@
+{
+  "version": "2026-04-03",
+  "basic_invalid_reasons": {
+    "no_white_king": [
+      "REP-008"
+    ],
+    "no_black_king": [
+      "REP-009"
+    ],
+    "too_many_white_pieces": [
+      "REP-010"
+    ],
+    "too_many_black_pieces": [
+      "REP-011"
+    ],
+    "too_many_white_pawns": [
+      "REP-012"
+    ],
+    "too_many_black_pawns": [
+      "REP-013"
+    ],
+    "too_many_total_pieces": [
+      "REP-014"
+    ],
+    "pawns_on_backrank": [
+      "REP-015"
+    ],
+    "bad_castling_rights": [
+      "REP-016",
+      "REP-017"
+    ],
+    "invalid_ep_square": [
+      "REP-018",
+      "REP-019"
+    ],
+    "hash_mismatch": [
+      "REP-023",
+      "REP-024",
+      "REP-025"
+    ],
+    "side_not_to_move_in_check": [
+      "LOC-001",
+      "LOC-004"
+    ],
+    "kings_adjacent": [
+      "LOC-002"
+    ],
+    "too_many_checkers": [
+      "LOC-003"
+    ],
+    "impossible_check": [
+      "LOC-005"
+    ],
+    "illegal_castling": [
+      "LOC-011",
+      "LOC-012",
+      "LOC-013",
+      "LOC-014",
+      "LOC-015"
+    ],
+    "illegal_en_passant": [
+      "LOC-016",
+      "LOC-017",
+      "LOC-018"
+    ],
+    "illegal_promotion": [
+      "LOC-019",
+      "LOC-020",
+      "LOC-021"
+    ],
+    "illegal_piece_move": [
+      "LOC-022",
+      "LOC-023",
+      "LOC-024",
+      "LOC-025",
+      "LOC-026"
+    ],
+    "history_counter_mismatch": [
+      "HIS-009",
+      "HIS-010",
+      "HIS-011",
+      "HIS-012"
+    ],
+    "undo_mismatch": [
+      "HIS-013",
+      "HIS-014"
+    ],
+    "repetition_key_bug": [
+      "HIS-017",
+      "HIS-018",
+      "HIS-019"
+    ],
+    "search_mutation": [
+      "HIS-023",
+      "MET-007"
+    ]
+  },
+  "heuristic_reachability_reasons": {
+    "promotion_budget_impossible": [
+      "RCH-001",
+      "RCH-002",
+      "RCH-006"
+    ],
+    "pawn_capture_budget_impossible": [
+      "RCH-003"
+    ],
+    "pawn_origin_impossible": [
+      "RCH-004"
+    ],
+    "bishop_color_complex_impossible": [
+      "RCH-005"
+    ],
+    "checker_geometry_suspect": [
+      "RCH-007"
+    ]
+  },
+  "recommended_public_api_fields": [
+    "validity_level",
+    "fatal_errors",
+    "strict_errors",
+    "heuristic_warnings",
+    "normalized_changes",
+    "policy_mode",
+    "stage"
+  ]
+}

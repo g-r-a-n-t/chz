@@ -1,0 +1,68 @@
+pub type Move = u32
+
+// 4-bit nibbleboard piece codes (0..15).
+pub const PIECE_EMPTY: u8 = 0x0
+
+pub const PIECE_WP: u8 = 0x1
+pub const PIECE_WN: u8 = 0x2
+pub const PIECE_WB: u8 = 0x3
+pub const PIECE_WR: u8 = 0x4
+pub const PIECE_WQ: u8 = 0x5
+pub const PIECE_WK: u8 = 0x6
+
+pub const PIECE_BP: u8 = 0x9
+pub const PIECE_BN: u8 = 0xA
+pub const PIECE_BB: u8 = 0xB
+pub const PIECE_BR: u8 = 0xC
+pub const PIECE_BQ: u8 = 0xD
+pub const PIECE_BK: u8 = 0xE
+
+// Castling rights bitfield (4 bits).
+pub const CASTLE_WK: u8 = 0x1
+pub const CASTLE_WQ: u8 = 0x2
+pub const CASTLE_BK: u8 = 0x4
+pub const CASTLE_BQ: u8 = 0x8
+
+// EP file encoding (4 bits).
+pub const EP_NONE: u8 = 0xF
+
+pub enum Side {
+    White,
+    Black,
+}
+
+pub enum GameStatus {
+    Ongoing,
+    WhiteWon,
+    BlackWon,
+    Draw,
+}
+
+pub enum EndReason {
+    None,
+    Checkmate,
+    Stalemate,
+    Threefold,
+    Fivefold,
+    FiftyMove,
+    SeventyFiveMove,
+    DeadPosition,
+    Resignation,
+    Timeout,
+    TimeoutNoMate,
+    AgreedDraw,
+}
+
+pub enum ValidationError {
+    Unimplemented,
+
+    NoPieceAtSource,
+    WrongSideToMove,
+    FriendlyOccupiedDestination,
+    BadGeometry,
+    BlockedPath,
+    IllegalCastle,
+    IllegalEnPassant,
+    MissingPromotionChoice,
+    LeavesKingInCheck,
+}

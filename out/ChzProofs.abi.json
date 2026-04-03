@@ -1,0 +1,152 @@
+[
+  {
+    "type": "function",
+    "name": "provePieceAtSetPiece",
+    "inputs": [
+      {
+        "name": "board_word",
+        "type": "uint256"
+      },
+      {
+        "name": "sq_word",
+        "type": "uint256"
+      },
+      {
+        "name": "piece_word",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "provePieceAtClearPiece",
+    "inputs": [
+      {
+        "name": "board_word",
+        "type": "uint256"
+      },
+      {
+        "name": "sq_word",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "proveMovePieceEquiv",
+    "inputs": [
+      {
+        "name": "board_word",
+        "type": "uint256"
+      },
+      {
+        "name": "from_word",
+        "type": "uint256"
+      },
+      {
+        "name": "to_word",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "proveSetPiecePreservesOtherSquare",
+    "inputs": [
+      {
+        "name": "board_word",
+        "type": "uint256"
+      },
+      {
+        "name": "sq_word",
+        "type": "uint256"
+      },
+      {
+        "name": "other_word",
+        "type": "uint256"
+      },
+      {
+        "name": "piece_word",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "proveCanonicalEpNoAdjPawn",
+    "inputs": [
+      {
+        "name": "board_word",
+        "type": "uint256"
+      },
+      {
+        "name": "meta_word",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "proveRepetitionHashIgnoresHalfFullNoEp",
+    "inputs": [
+      {
+        "name": "board_word",
+        "type": "uint256"
+      },
+      {
+        "name": "meta_word",
+        "type": "uint256"
+      },
+      {
+        "name": "half_word",
+        "type": "uint256"
+      },
+      {
+        "name": "full_word",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  }
+]

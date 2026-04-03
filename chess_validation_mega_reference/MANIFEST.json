@@ -1,0 +1,31 @@
+{
+  "package": "chess_validation_mega_reference",
+  "version": "2026-04-03",
+  "files": [
+    "AGENT_BRIEF.md",
+    "README.md",
+    "docs/00_EXECUTIVE_SUMMARY.md",
+    "docs/01_RESEARCH_SYNTHESIS.md",
+    "docs/02_INVARIANT_LAYERS.md",
+    "docs/03_INTEGRATION_PLAYBOOK.md",
+    "docs/04_EXTERNAL_POSITION_POLICY.md",
+    "docs/05_TEST_STRATEGY.md",
+    "docs/06_BIBLIOGRAPHY.md",
+    "machine/checkpoints.csv",
+    "machine/checkpoints.json",
+    "machine/invariants_catalog.csv",
+    "machine/invariants_catalog.json",
+    "machine/layer_summary.json",
+    "machine/metamorphic_relations.json",
+    "machine/perft_reference.json",
+    "machine/policies.json",
+    "machine/sources.json",
+    "machine/status_taxonomy.json",
+    "machine/test_vectors.json",
+    "machine/validation_report_schema.json",
+    "examples/assert_position_pseudocode.md",
+    "examples/ci_plan.md",
+    "examples/differential_harness_pseudocode.md",
+    "examples/random_walk_validation_pseudocode.md"
+  ]
+}

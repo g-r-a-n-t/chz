@@ -1,0 +1,409 @@
+{
+  "version": "2026-04-03",
+  "stages": {
+    "parse_fen": {
+      "description": "Immediately after external position import, before or after documented normalization.",
+      "mandatory": [
+        "REP-001",
+        "REP-008",
+        "REP-009",
+        "REP-015",
+        "REP-016",
+        "REP-020",
+        "REP-021",
+        "LOC-001",
+        "LOC-002",
+        "LOC-004"
+      ],
+      "recommended": [
+        "REP-010",
+        "REP-011",
+        "REP-012",
+        "REP-013",
+        "REP-014",
+        "REP-017",
+        "REP-018",
+        "REP-019",
+        "LOC-003",
+        "LOC-005",
+        "HIS-021",
+        "RCH-008",
+        "RCH-010",
+        "MET-002"
+      ],
+      "optional_or_heuristic": [
+        "RCH-001",
+        "RCH-002",
+        "RCH-003",
+        "RCH-004",
+        "RCH-005",
+        "RCH-006",
+        "RCH-007"
+      ]
+    },
+    "canonicalize": {
+      "description": "When converting external state to a stricter internal canonical form.",
+      "mandatory": [],
+      "recommended": [
+        "REP-018",
+        "REP-019",
+        "HIS-006",
+        "RCH-008"
+      ],
+      "optional_or_heuristic": [
+        "RCH-001",
+        "RCH-002",
+        "RCH-003",
+        "RCH-004",
+        "RCH-005",
+        "RCH-006"
+      ]
+    },
+    "after_make": {
+      "description": "Immediately after applying a move.",
+      "mandatory": [
+        "REP-001",
+        "REP-002",
+        "REP-003",
+        "REP-004",
+        "REP-005",
+        "REP-006",
+        "REP-007",
+        "REP-008",
+        "REP-009",
+        "REP-015",
+        "REP-016",
+        "REP-020",
+        "REP-021",
+        "REP-023",
+        "LOC-001",
+        "LOC-002",
+        "LOC-004",
+        "LOC-009",
+        "LOC-011",
+        "LOC-012",
+        "LOC-013",
+        "LOC-014",
+        "LOC-015",
+        "LOC-016",
+        "LOC-017",
+        "LOC-018",
+        "LOC-019",
+        "LOC-020",
+        "LOC-021",
+        "LOC-022",
+        "LOC-023",
+        "LOC-024",
+        "LOC-025",
+        "LOC-026",
+        "HIS-001",
+        "HIS-002",
+        "HIS-003",
+        "HIS-004",
+        "HIS-005",
+        "HIS-007",
+        "HIS-008",
+        "HIS-009",
+        "HIS-010",
+        "HIS-011",
+        "HIS-012",
+        "HIS-013",
+        "HIS-017"
+      ],
+      "recommended": [
+        "REP-010",
+        "REP-011",
+        "REP-012",
+        "REP-013",
+        "REP-014",
+        "REP-017",
+        "REP-019",
+        "REP-022",
+        "REP-024",
+        "REP-025",
+        "REP-026",
+        "REP-027",
+        "REP-028",
+        "REP-029",
+        "REP-030",
+        "REP-031",
+        "REP-032",
+        "LOC-003",
+        "HIS-006",
+        "HIS-018",
+        "HIS-022",
+        "RCH-009"
+      ],
+      "optional_or_heuristic": []
+    },
+    "after_unmake": {
+      "description": "Immediately after reverting a move.",
+      "mandatory": [
+        "REP-001",
+        "REP-002",
+        "REP-003",
+        "REP-004",
+        "REP-005",
+        "REP-006",
+        "REP-007",
+        "REP-008",
+        "REP-009",
+        "REP-015",
+        "REP-016",
+        "REP-020",
+        "REP-021",
+        "REP-023",
+        "LOC-001",
+        "LOC-002",
+        "LOC-004",
+        "LOC-014",
+        "LOC-021",
+        "HIS-001",
+        "HIS-002",
+        "HIS-003",
+        "HIS-004",
+        "HIS-005",
+        "HIS-007",
+        "HIS-008",
+        "HIS-009",
+        "HIS-010",
+        "HIS-011",
+        "HIS-012",
+        "HIS-013",
+        "HIS-014",
+        "HIS-017",
+        "MET-005"
+      ],
+      "recommended": [
+        "REP-010",
+        "REP-011",
+        "REP-012",
+        "REP-013",
+        "REP-014",
+        "REP-017",
+        "REP-019",
+        "REP-022",
+        "REP-024",
+        "REP-025",
+        "REP-026",
+        "REP-027",
+        "REP-028",
+        "REP-029",
+        "REP-030",
+        "REP-031",
+        "REP-032",
+        "LOC-003",
+        "LOC-032",
+        "HIS-016",
+        "HIS-018",
+        "HIS-022",
+        "RCH-009"
+      ],
+      "optional_or_heuristic": []
+    },
+    "after_null": {
+      "description": "Immediately after a null move, if the engine supports null-move search.",
+      "mandatory": [
+        "REP-001"
+      ],
+      "recommended": [
+        "HIS-016"
+      ],
+      "optional_or_heuristic": []
+    },
+    "before_movegen": {
+      "description": "Before generating moves, mainly for targeted debug checks.",
+      "mandatory": [],
+      "recommended": [],
+      "optional_or_heuristic": []
+    },
+    "after_movegen": {
+      "description": "After generating legal and/or pseudo-legal moves.",
+      "mandatory": [
+        "LOC-008",
+        "LOC-009",
+        "LOC-011",
+        "LOC-012",
+        "LOC-013",
+        "LOC-015",
+        "LOC-016",
+        "LOC-017",
+        "LOC-018",
+        "LOC-019",
+        "LOC-020",
+        "LOC-022",
+        "LOC-023",
+        "LOC-024",
+        "LOC-025",
+        "LOC-026"
+      ],
+      "recommended": [
+        "LOC-006",
+        "LOC-007",
+        "LOC-010",
+        "LOC-027",
+        "LOC-028",
+        "LOC-030",
+        "MET-006"
+      ],
+      "optional_or_heuristic": []
+    },
+    "serialize": {
+      "description": "When exporting FEN/PGN or cloning state.",
+      "mandatory": [
+        "REP-001",
+        "REP-016",
+        "REP-020",
+        "REP-021",
+        "HIS-001"
+      ],
+      "recommended": [
+        "REP-018",
+        "REP-022",
+        "HIS-006",
+        "HIS-021",
+        "HIS-022",
+        "MET-001",
+        "MET-002"
+      ],
+      "optional_or_heuristic": []
+    },
+    "search_root": {
+      "description": "At the start and end of search on the root position.",
+      "mandatory": [
+        "REP-023",
+        "HIS-017",
+        "HIS-023",
+        "MET-007"
+      ],
+      "recommended": [
+        "REP-032",
+        "LOC-027",
+        "LOC-028",
+        "LOC-029",
+        "HIS-015",
+        "HIS-018",
+        "HIS-019",
+        "HIS-020",
+        "HIS-024",
+        "HIS-025",
+        "RCH-009",
+        "MET-001"
+      ],
+      "optional_or_heuristic": []
+    },
+    "periodic_deep_check": {
+      "description": "Sampled deep validation inside search or stress tests; not necessarily every node.",
+      "mandatory": [
+        "REP-002",
+        "REP-003",
+        "REP-004",
+        "REP-005",
+        "REP-006",
+        "REP-007",
+        "REP-008",
+        "REP-009",
+        "REP-015",
+        "REP-023",
+        "LOC-001",
+        "LOC-002",
+        "LOC-004",
+        "LOC-008",
+        "LOC-009",
+        "LOC-011",
+        "LOC-012",
+        "LOC-013",
+        "LOC-014",
+        "LOC-015",
+        "LOC-016",
+        "LOC-017",
+        "LOC-018",
+        "LOC-019",
+        "LOC-020",
+        "LOC-021",
+        "LOC-022",
+        "LOC-023",
+        "LOC-024",
+        "LOC-025",
+        "LOC-026",
+        "HIS-014"
+      ],
+      "recommended": [
+        "REP-010",
+        "REP-011",
+        "REP-012",
+        "REP-013",
+        "REP-014",
+        "REP-017",
+        "REP-024",
+        "REP-025",
+        "REP-026",
+        "REP-027",
+        "REP-028",
+        "REP-029",
+        "REP-030",
+        "LOC-003",
+        "LOC-005",
+        "LOC-006",
+        "LOC-007",
+        "LOC-010",
+        "LOC-027",
+        "LOC-028",
+        "LOC-029",
+        "LOC-030",
+        "LOC-031",
+        "LOC-032",
+        "HIS-015",
+        "HIS-019",
+        "HIS-020",
+        "HIS-025",
+        "MET-001"
+      ],
+      "optional_or_heuristic": []
+    },
+    "perft": {
+      "description": "When running perft/divide reference tests.",
+      "mandatory": [
+        "HIS-014",
+        "MET-005"
+      ],
+      "recommended": [
+        "LOC-030"
+      ],
+      "optional_or_heuristic": [
+        "MET-003",
+        "MET-004",
+        "MET-012"
+      ]
+    },
+    "differential": {
+      "description": "When comparing against a trusted external implementation.",
+      "mandatory": [],
+      "recommended": [],
+      "optional_or_heuristic": [
+        "MET-010",
+        "MET-011"
+      ]
+    },
+    "oracle": {
+      "description": "When exact or high-confidence external oracles are used.",
+      "mandatory": [
+        "MET-005"
+      ],
+      "recommended": [
+        "HIS-024",
+        "RCH-010",
+        "MET-006"
+      ],
+      "optional_or_heuristic": [
+        "MET-003",
+        "MET-004",
+        "MET-008",
+        "MET-009",
+        "MET-010",
+        "MET-011",
+        "MET-012"
+      ]
+    }
+  }
+}

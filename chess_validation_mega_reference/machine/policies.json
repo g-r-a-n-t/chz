@@ -1,0 +1,77 @@
+{
+  "scope": "Orthodox chess (with notes for Chess960-aware castling handling)",
+  "recommended_validity_levels": [
+    {
+      "id": "TRUSTED_GENERATED",
+      "meaning": "State was generated from the standard initial position by your own legal move engine or a fully trusted replay pipeline.",
+      "recommended_use": "Internal game play, search, perft, random walks."
+    },
+    {
+      "id": "BASIC_VALID",
+      "meaning": "State passes structural, local-legality, and history-field validation under the selected I/O policy.",
+      "recommended_use": "Imported positions that are safe to analyze locally, but not necessarily guaranteed reachable."
+    },
+    {
+      "id": "HEURISTIC_REACHABILITY_PASS",
+      "meaning": "Imported state passed extra retrograde-style heuristics in addition to BASIC_VALID.",
+      "recommended_use": "Stricter import workflows where obvious unreachable positions should be rejected."
+    },
+    {
+      "id": "HEURISTIC_REACHABILITY_FAIL",
+      "meaning": "State is BASIC_VALID but triggered one or more reachability heuristics.",
+      "recommended_use": "Warn, quarantine, or reject depending on product goals."
+    },
+    {
+      "id": "INVALID",
+      "meaning": "State violates at least one fatal or strict invariant.",
+      "recommended_use": "Reject and report reasons."
+    }
+  ],
+  "ep_policies": {
+    "spec_fen": {
+      "description": "Preserve the EP target square after any double pawn push exactly as defined by the original FEN specification, even when no legal EP capture exists.",
+      "matches": [
+        "FEN/PGN spec",
+        "python-chess validity expectations for I/O"
+      ],
+      "use_for": [
+        "external parsing",
+        "external serialization",
+        "wire compatibility",
+        "golden round-trips"
+      ]
+    },
+    "strict_captureable": {
+      "description": "Keep an EP square only when at least one legal EP capture exists and the capture is king-safe.",
+      "matches": [
+        "Stockfish-style internal sanitation"
+      ],
+      "use_for": [
+        "internal canonicalization",
+        "debug invariants",
+        "TT-key normalization if documented"
+      ]
+    }
+  },
+  "castling_policy": {
+    "historical_rights": {
+      "description": "Castling rights encode history (king/rook not previously moved), not current immediate legal castlability.",
+      "separate_checks_required": [
+        "rights present",
+        "path empty",
+        "king not in check",
+        "transit and destination squares not attacked"
+      ]
+    }
+  },
+  "import_policy_recommendation": {
+    "summary": "Do not label every syntactically acceptable FEN as 'legal'. Distinguish BASIC_VALID from reachable legality.",
+    "recommended_pipeline": [
+      "parse_fen preserving external I/O policy",
+      "run IMPORT_BASIC validation",
+      "optionally canonicalize to strict internal policy",
+      "optionally run IMPORT_STRICT reachability heuristics",
+      "set validity level explicitly"
+    ]
+  }
+}

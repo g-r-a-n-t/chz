@@ -1,0 +1,394 @@
+use ingot::{
+    encode_move,
+    in_check,
+    meta_castling_rights,
+    meta_set_black_king_sq,
+    meta_set_castling_rights,
+    meta_set_ep_file,
+    meta_set_fullmove_number,
+    meta_set_halfmove_clock,
+    meta_set_side_to_move,
+    meta_set_white_king_sq,
+    meta_side_to_move_is_white,
+    piece_at,
+    validate_move,
+    EndReason,
+    GameStatus,
+    CASTLE_BK,
+    CASTLE_BQ,
+    CASTLE_WK,
+    CASTLE_WQ,
+    EP_NONE,
+    PIECE_BK,
+    PIECE_EMPTY,
+    PIECE_WK,
+    PIECE_WQ,
+}
+
+use ingot::{is_black_piece, is_white_piece, piece_kind, sq, sq_file, sq_rank}
+
+fn try_one(board_word: u256, meta_word: u256, from_sq: u8, to_sq: u8, promo: u8) -> bool {
+    let mv = encode_move(from_sq: from_sq, to_sq: to_sq, promo: promo)
+    match validate_move(board_word, meta_word, mv) {
+        Ok(_) => true
+        Err(_) => false
+    }
+}
+
+pub fn has_any_legal_move(board_word: u256, meta_word: u256) -> bool {
+    let stm_white = meta_side_to_move_is_white(meta_word)
+
+    let mut from_sq: u8 = 0
+    while from_sq < 64 {
+        let p = piece_at(board_word, from_sq)
+        if p == PIECE_EMPTY {
+            from_sq += 1
+            continue
+        }
+
+        if stm_white {
+            if !is_white_piece(p) {
+                from_sq += 1
+                continue
+            }
+        } else {
+            if !is_black_piece(p) {
+                from_sq += 1
+                continue
+            }
+        }
+
+        let kind = piece_kind(p)
+        let f = sq_file(from_sq)
+        let r = sq_rank(from_sq)
+
+        // Pawn
+        if kind == 1 {
+            if stm_white {
+                if r < 7 {
+                    // Push.
+                    let to_sq = from_sq + 8
+                    let to_rank = r + 1
+                    if to_rank == 7 {
+                        if try_one(board_word, meta_word, from_sq, to_sq, 1) { return true }
+                        if try_one(board_word, meta_word, from_sq, to_sq, 2) { return true }
+                        if try_one(board_word, meta_word, from_sq, to_sq, 3) { return true }
+                        if try_one(board_word, meta_word, from_sq, to_sq, 4) { return true }
+                    } else {
+                        if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                    }
+                }
+                // Double push.
+                if r == 1 {
+                    if try_one(board_word, meta_word, from_sq, from_sq + 16, 0) { return true }
+                }
+                // Captures (including EP).
+                if r < 7 {
+                    let to_rank = r + 1
+                    if f > 0 {
+                        let to_sq = from_sq + 7
+                        if to_rank == 7 {
+                            if try_one(board_word, meta_word, from_sq, to_sq, 1) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 2) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 3) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 4) { return true }
+                        } else {
+                            if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        }
+                    }
+                    if f < 7 {
+                        let to_sq = from_sq + 9
+                        if to_rank == 7 {
+                            if try_one(board_word, meta_word, from_sq, to_sq, 1) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 2) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 3) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 4) { return true }
+                        } else {
+                            if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        }
+                    }
+                }
+            } else {
+                // Black pawn.
+                if r > 0 {
+                    // Push.
+                    let to_sq = from_sq - 8
+                    let to_rank = r - 1
+                    if to_rank == 0 {
+                        if try_one(board_word, meta_word, from_sq, to_sq, 1) { return true }
+                        if try_one(board_word, meta_word, from_sq, to_sq, 2) { return true }
+                        if try_one(board_word, meta_word, from_sq, to_sq, 3) { return true }
+                        if try_one(board_word, meta_word, from_sq, to_sq, 4) { return true }
+                    } else {
+                        if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                    }
+                }
+                // Double push.
+                if r == 6 {
+                    if try_one(board_word, meta_word, from_sq, from_sq - 16, 0) { return true }
+                }
+                // Captures (including EP).
+                if r > 0 {
+                    let to_rank = r - 1
+                    if f > 0 {
+                        let to_sq = from_sq - 9
+                        if to_rank == 0 {
+                            if try_one(board_word, meta_word, from_sq, to_sq, 1) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 2) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 3) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 4) { return true }
+                        } else {
+                            if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        }
+                    }
+                    if f < 7 {
+                        let to_sq = from_sq - 7
+                        if to_rank == 0 {
+                            if try_one(board_word, meta_word, from_sq, to_sq, 1) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 2) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 3) { return true }
+                            if try_one(board_word, meta_word, from_sq, to_sq, 4) { return true }
+                        } else {
+                            if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Knight
+        else if kind == 2 {
+            if f <= 6 && r <= 5 { if try_one(board_word, meta_word, from_sq, from_sq + 17, 0) { return true } }
+            if f >= 1 && r <= 5 { if try_one(board_word, meta_word, from_sq, from_sq + 15, 0) { return true } }
+            if f <= 5 && r <= 6 { if try_one(board_word, meta_word, from_sq, from_sq + 10, 0) { return true } }
+            if f >= 2 && r <= 6 { if try_one(board_word, meta_word, from_sq, from_sq + 6, 0) { return true } }
+            if f <= 5 && r >= 1 { if try_one(board_word, meta_word, from_sq, from_sq - 6, 0) { return true } }
+            if f >= 2 && r >= 1 { if try_one(board_word, meta_word, from_sq, from_sq - 10, 0) { return true } }
+            if f <= 6 && r >= 2 { if try_one(board_word, meta_word, from_sq, from_sq - 15, 0) { return true } }
+            if f >= 1 && r >= 2 { if try_one(board_word, meta_word, from_sq, from_sq - 17, 0) { return true } }
+        }
+
+        // Bishop / rook / queen sliders
+        else if kind == 3 || kind == 4 || kind == 5 {
+            let diag = kind == 3 || kind == 5
+            let ortho = kind == 4 || kind == 5
+
+            if diag {
+                // NE
+                {
+                    let mut ff = f
+                    let mut rr = r
+                    while ff < 7 && rr < 7 {
+                        ff += 1
+                        rr += 1
+                        let to_sq = sq(ff, rr)
+                        if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                    }
+                }
+                // NW
+                {
+                    let mut ff = f
+                    let mut rr = r
+                    while ff > 0 && rr < 7 {
+                        ff -= 1
+                        rr += 1
+                        let to_sq = sq(ff, rr)
+                        if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                    }
+                }
+                // SE
+                {
+                    let mut ff = f
+                    let mut rr = r
+                    while ff < 7 && rr > 0 {
+                        ff += 1
+                        rr -= 1
+                        let to_sq = sq(ff, rr)
+                        if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                    }
+                }
+                // SW
+                {
+                    let mut ff = f
+                    let mut rr = r
+                    while ff > 0 && rr > 0 {
+                        ff -= 1
+                        rr -= 1
+                        let to_sq = sq(ff, rr)
+                        if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                    }
+                }
+            }
+
+            if ortho {
+                // North
+                {
+                    let mut rr = r
+                    while rr < 7 {
+                        rr += 1
+                        let to_sq = sq(f, rr)
+                        if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                    }
+                }
+                // South
+                {
+                    let mut rr = r
+                    while rr > 0 {
+                        rr -= 1
+                        let to_sq = sq(f, rr)
+                        if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                    }
+                }
+                // East
+                {
+                    let mut ff = f
+                    while ff < 7 {
+                        ff += 1
+                        let to_sq = sq(ff, r)
+                        if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                    }
+                }
+                // West
+                {
+                    let mut ff = f
+                    while ff > 0 {
+                        ff -= 1
+                        let to_sq = sq(ff, r)
+                        if try_one(board_word, meta_word, from_sq, to_sq, 0) { return true }
+                        if piece_at(board_word, to_sq) != PIECE_EMPTY { break }
+                    }
+                }
+            }
+        }
+
+        // King
+        else if kind == 6 {
+            // Adjacent squares.
+            if r < 7 { if try_one(board_word, meta_word, from_sq, from_sq + 8, 0) { return true } }
+            if r > 0 { if try_one(board_word, meta_word, from_sq, from_sq - 8, 0) { return true } }
+            if f < 7 { if try_one(board_word, meta_word, from_sq, from_sq + 1, 0) { return true } }
+            if f > 0 { if try_one(board_word, meta_word, from_sq, from_sq - 1, 0) { return true } }
+            if f < 7 && r < 7 { if try_one(board_word, meta_word, from_sq, from_sq + 9, 0) { return true } }
+            if f > 0 && r < 7 { if try_one(board_word, meta_word, from_sq, from_sq + 7, 0) { return true } }
+            if f < 7 && r > 0 { if try_one(board_word, meta_word, from_sq, from_sq - 7, 0) { return true } }
+            if f > 0 && r > 0 { if try_one(board_word, meta_word, from_sq, from_sq - 9, 0) { return true } }
+
+            // Castling candidates (validate_move enforces all rules).
+            let rights = meta_castling_rights(meta_word)
+            if stm_white {
+                if from_sq == 4 {
+                    if (rights & CASTLE_WK) != 0 {
+                        if try_one(board_word, meta_word, 4, 6, 0) { return true }
+                    }
+                    if (rights & CASTLE_WQ) != 0 {
+                        if try_one(board_word, meta_word, 4, 2, 0) { return true }
+                    }
+                }
+            } else {
+                if from_sq == 60 {
+                    if (rights & CASTLE_BK) != 0 {
+                        if try_one(board_word, meta_word, 60, 62, 0) { return true }
+                    }
+                    if (rights & CASTLE_BQ) != 0 {
+                        if try_one(board_word, meta_word, 60, 58, 0) { return true }
+                    }
+                }
+            }
+        }
+
+        from_sq += 1
+    }
+
+    false
+}
+
+pub fn classify_terminal_state(board_word: u256, meta_word: u256) -> (GameStatus, EndReason) {
+    // v0: only checkmate/stalemate classification.
+    let stm_white = meta_side_to_move_is_white(meta_word)
+    if has_any_legal_move(board_word, meta_word) {
+        (GameStatus::Ongoing, EndReason::None)
+    } else {
+        if in_check(board_word, meta_word, stm_white) {
+            if stm_white {
+                (GameStatus::BlackWon, EndReason::Checkmate)
+            } else {
+                (GameStatus::WhiteWon, EndReason::Checkmate)
+            }
+        } else {
+            (GameStatus::Draw, EndReason::Stalemate)
+        }
+    }
+}
+
+// --- tests ---
+
+fn meta_custom(
+    stm_white: bool,
+    rights: u8,
+    ep_file: u8,
+    halfmove: u16,
+    fullmove: u16,
+    wk: u8,
+    bk: u8,
+) -> u256 {
+    let mut meta: u256 = 0
+    meta = meta_set_side_to_move(meta, stm_white)
+    meta = meta_set_castling_rights(meta, rights)
+    meta = meta_set_ep_file(meta, ep_file)
+    meta = meta_set_halfmove_clock(meta, halfmove)
+    meta = meta_set_fullmove_number(meta, fullmove)
+    meta = meta_set_white_king_sq(meta, wk)
+    meta = meta_set_black_king_sq(meta, bk)
+    meta
+}
+
+#[test]
+fn test_terminal_stalemate_and_checkmate() {
+    // Stalemate: 7k/5Q2/6K1/8/8/8/8/8 b - - 0 1
+    let mut board: u256 = 0
+    board = ingot::set_piece(board, 63, PIECE_BK) // h8
+    board = ingot::set_piece(board, 53, PIECE_WQ) // f7
+    board = ingot::set_piece(board, 46, PIECE_WK) // g6
+    let meta = meta_custom(
+        stm_white: false,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 46,
+        bk: 63,
+    )
+    let (status, reason) = classify_terminal_state(board, meta)
+    match (status, reason) {
+        (GameStatus::Draw, EndReason::Stalemate) => {}
+        _ => assert(false)
+    }
+
+    // Checkmate: 7k/6Q1/6K1/8/8/8/8/8 b - - 0 1
+    let mut board2: u256 = 0
+    board2 = ingot::set_piece(board2, 63, PIECE_BK) // h8
+    board2 = ingot::set_piece(board2, 54, PIECE_WQ) // g7
+    board2 = ingot::set_piece(board2, 46, PIECE_WK) // g6
+    let meta2 = meta_custom(
+        stm_white: false,
+        rights: 0,
+        ep_file: EP_NONE,
+        halfmove: 0,
+        fullmove: 1,
+        wk: 46,
+        bk: 63,
+    )
+    let (status2, reason2) = classify_terminal_state(board2, meta2)
+    match (status2, reason2) {
+        (GameStatus::WhiteWon, EndReason::Checkmate) => {}
+        _ => assert(false)
+    }
+}
+

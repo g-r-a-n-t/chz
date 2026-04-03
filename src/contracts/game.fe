@@ -1,0 +1,409 @@
+use std::evm::{Ctx, Log}
+use std::evm::effects::assert
+use std::evm::ops
+use std::abi::sol
+
+use ingot::{
+    board_init_standard,
+    classify_terminal_state,
+    decode_move,
+    meta_halfmove_clock,
+    meta_init_standard,
+    meta_side_to_move_is_white,
+    piece_at,
+    piece_kind,
+    repetition_hash,
+    validate_move,
+    EndReason,
+    GameStatus,
+    PIECE_EMPTY,
+}
+
+const STATUS_ONGOING: u8 = 0
+const STATUS_WHITE_WON: u8 = 1
+const STATUS_BLACK_WON: u8 = 2
+const STATUS_DRAW: u8 = 3
+
+const CLAIM_THREEFOLD: u8 = 0x01
+const CLAIM_FIFTY_MOVE: u8 = 0x02
+
+const DRAW_REASON_THREEFOLD: u8 = 1
+const DRAW_REASON_FIFTY_MOVE: u8 = 2
+
+fn is_repetition_reset_move(board_word: u256, mv: u32) -> bool {
+    let (from_sq, to_sq, _) = decode_move(mv)
+    let moving_piece = piece_at(board_word, from_sq)
+    if moving_piece == PIECE_EMPTY {
+        false
+    } else if piece_kind(moving_piece) == 1 {
+        true
+    } else {
+        piece_at(board_word, to_sq) != PIECE_EMPTY
+    }
+}
+
+fn status_u8(status: GameStatus) -> u8 {
+    match status {
+        GameStatus::Ongoing => STATUS_ONGOING,
+        GameStatus::WhiteWon => STATUS_WHITE_WON,
+        GameStatus::BlackWon => STATUS_BLACK_WON,
+        GameStatus::Draw => STATUS_DRAW,
+    }
+}
+
+fn reason_u8(reason: EndReason) -> u8 {
+    match reason {
+        EndReason::None => 0,
+        EndReason::Checkmate => 1,
+        EndReason::Stalemate => 2,
+        EndReason::Threefold => 3,
+        EndReason::Fivefold => 4,
+        EndReason::FiftyMove => 5,
+        EndReason::SeventyFiveMove => 6,
+        EndReason::DeadPosition => 7,
+        EndReason::Resignation => 8,
+        EndReason::Timeout => 9,
+        EndReason::TimeoutNoMate => 10,
+        EndReason::AgreedDraw => 11,
+    }
+}
+
+fn send_value(to: Address, value: u256) -> bool {
+    let ok = ops::call(
+        gas: ops::gas(),
+        addr: to.inner,
+        value: value,
+        args_offset: 0,
+        args_len: 0,
+        ret_offset: 0,
+        ret_len: 0,
+    )
+    ok != 0
+}
+
+#[event]
+struct MatchCreated {
+    #[indexed]
+    white: Address,
+    #[indexed]
+    black: Address,
+    wager: u256,
+    initial_hash: u256,
+}
+
+#[event]
+struct MoveAccepted {
+    mv: u32,
+    pos_hash: u256,
+    status: u8,
+    end_reason: u8,
+}
+
+#[event]
+struct Withdrawal {
+    #[indexed]
+    player: Address,
+    #[indexed]
+    to: Address,
+    amount: u256,
+}
+
+pub struct GameStore {
+    pub board_word: u256,
+    pub meta_word: u256,
+
+    pub white: Address,
+    pub black: Address,
+
+    pub wager: u256,
+    pub status: u8,
+    pub end_reason: u8,
+
+    pub payout_white: u256,
+    pub payout_black: u256,
+
+    pub rep_len: u8,
+    pub rep_history: [u256; 160],
+}
+
+msg ChzGameMsg {
+    #[selector = sol("submitMove(uint32,uint8)")]
+    SubmitMove { mv: u32, claim_flags: u8 } -> bool,
+
+    #[selector = sol("claimDrawNow(uint8)")]
+    ClaimDrawNow { reason: u8 } -> bool,
+
+    #[selector = sol("resign()")]
+    Resign -> bool,
+
+    #[selector = sol("withdrawTo(address)")]
+    WithdrawTo { to: Address } -> bool,
+}
+
+pub contract ChzGame uses (ctx: Ctx, log: mut Log) {
+    mut store: GameStore
+
+    #[payable]
+    init(white: Address, black: Address, wager: u256) uses (mut store, ctx, mut log) {
+        // Escrow the full pot up-front.
+        assert(ctx.value() == wager + wager)
+
+        store.white = white
+        store.black = black
+        store.wager = wager
+        store.status = STATUS_ONGOING
+        store.end_reason = 0
+        store.payout_white = 0
+        store.payout_black = 0
+        store.rep_len = 0
+
+        store.board_word = board_init_standard()
+        store.meta_word = meta_init_standard()
+
+        let h0 = repetition_hash(store.board_word, store.meta_word)
+        store.rep_history[0] = h0
+        store.rep_len = 1
+
+        log.emit(MatchCreated { white, black, wager, initial_hash: h0 })
+    }
+
+    recv ChzGameMsg {
+        SubmitMove { mv, claim_flags } -> bool uses (mut store, ctx, mut log) {
+            if store.status != STATUS_ONGOING {
+                return false
+            }
+
+            if (claim_flags & !(CLAIM_THREEFOLD | CLAIM_FIFTY_MOVE)) != 0 {
+                return false
+            }
+            if (claim_flags & CLAIM_THREEFOLD) != 0 && (claim_flags & CLAIM_FIFTY_MOVE) != 0 {
+                return false
+            }
+
+            let sender = ctx.caller()
+            let white_to_move = meta_side_to_move_is_white(store.meta_word)
+            if white_to_move {
+                if sender != store.white {
+                    return false
+                }
+            } else {
+                if sender != store.black {
+                    return false
+                }
+            }
+
+            let board0 = store.board_word
+            let meta0 = store.meta_word
+            let rep_len0 = if store.rep_len < 160 { store.rep_len } else { 0 }
+
+            match validate_move(board0, meta0, mv) {
+                Ok((board2, meta2)) => {
+                    let pos_hash = repetition_hash(board2, meta2)
+
+                    let (auto_status, auto_reason) = classify_terminal_state(board2, meta2)
+                    let mut final_status = auto_status
+                    let mut final_reason = auto_reason
+
+                    // Repetition tracking + claims.
+                    //
+                    // Semantics:
+                    // - claims are only enforced if the game would otherwise continue
+                    // - automatic fivefold is checked before claim processing
+                    match final_status {
+                        GameStatus::Ongoing => {
+                            // Update repetition history (reset on pawn moves and captures).
+                            let reset = is_repetition_reset_move(board0, mv)
+                            let mut count: u8 = 1
+                            if !reset {
+                                let mut i: u8 = 0
+                                while i < rep_len0 {
+                                    if store.rep_history[i as usize] == pos_hash {
+                                        count += 1
+                                    }
+                                    i += 1
+                                }
+                            }
+
+                            if count >= 5 {
+                                final_status = GameStatus::Draw
+                                final_reason = EndReason::Fivefold
+                            } else if (claim_flags & CLAIM_THREEFOLD) != 0 {
+                                if count >= 3 {
+                                    final_status = GameStatus::Draw
+                                    final_reason = EndReason::Threefold
+                                } else {
+                                    return false
+                                }
+                            } else if (claim_flags & CLAIM_FIFTY_MOVE) != 0 {
+                                if meta_halfmove_clock(meta2) >= 100 {
+                                    final_status = GameStatus::Draw
+                                    final_reason = EndReason::FiftyMove
+                                } else {
+                                    return false
+                                }
+                            }
+
+                            // Commit repetition history update for this move.
+                            if reset {
+                                store.rep_history[0] = pos_hash
+                                store.rep_len = 1
+                            } else {
+                                store.rep_history[rep_len0 as usize] = pos_hash
+                                store.rep_len = rep_len0 + 1
+                            }
+                        }
+                        _ => ()
+                    }
+
+                    // Commit board/meta after all checks (so false-claims don't mutate state).
+                    store.board_word = board2
+                    store.meta_word = meta2
+
+                    match final_status {
+                        GameStatus::Ongoing => (),
+                        _ => {
+                        store.status = status_u8(final_status)
+                        store.end_reason = reason_u8(final_reason)
+
+                        match final_status {
+                            GameStatus::WhiteWon => {
+                                store.payout_white = store.wager + store.wager
+                                store.payout_black = 0
+                            }
+                            GameStatus::BlackWon => {
+                                store.payout_white = 0
+                                store.payout_black = store.wager + store.wager
+                            }
+                            GameStatus::Draw => {
+                                store.payout_white = store.wager
+                                store.payout_black = store.wager
+                            }
+                            GameStatus::Ongoing => ()
+                        }
+                    }}
+
+                    log.emit(MoveAccepted {
+                        mv,
+                        pos_hash: pos_hash,
+                        status: store.status,
+                        end_reason: store.end_reason,
+                    })
+
+                    true
+                }
+                Err(_) => false
+            }
+        }
+
+        ClaimDrawNow { reason } -> bool uses (mut store, ctx, mut log) {
+            if store.status != STATUS_ONGOING {
+                return false
+            }
+
+            let sender = ctx.caller()
+            if sender != store.white && sender != store.black {
+                return false
+            }
+
+            if store.rep_len == 0 {
+                return false
+            }
+
+            let current_hash = store.rep_history[(store.rep_len - 1) as usize]
+            let mut count: u8 = 0
+            let mut i: u8 = 0
+            while i < store.rep_len {
+                if store.rep_history[i as usize] == current_hash {
+                    count += 1
+                }
+                i += 1
+            }
+
+            if reason == DRAW_REASON_THREEFOLD {
+                if count < 3 {
+                    return false
+                }
+                store.status = STATUS_DRAW
+                store.end_reason = reason_u8(EndReason::Threefold)
+                store.payout_white = store.wager
+                store.payout_black = store.wager
+            } else if reason == DRAW_REASON_FIFTY_MOVE {
+                if meta_halfmove_clock(store.meta_word) < 100 {
+                    return false
+                }
+                store.status = STATUS_DRAW
+                store.end_reason = reason_u8(EndReason::FiftyMove)
+                store.payout_white = store.wager
+                store.payout_black = store.wager
+            } else {
+                return false
+            }
+
+            log.emit(MoveAccepted {
+                mv: 0,
+                pos_hash: current_hash,
+                status: store.status,
+                end_reason: store.end_reason,
+            })
+
+            true
+        }
+
+        Resign -> bool uses (mut store, ctx, mut log) {
+            if store.status != STATUS_ONGOING {
+                return false
+            }
+
+            let sender = ctx.caller()
+            if sender == store.white {
+                store.status = STATUS_BLACK_WON
+                store.end_reason = reason_u8(EndReason::Resignation)
+                store.payout_white = 0
+                store.payout_black = store.wager + store.wager
+            } else if sender == store.black {
+                store.status = STATUS_WHITE_WON
+                store.end_reason = reason_u8(EndReason::Resignation)
+                store.payout_white = store.wager + store.wager
+                store.payout_black = 0
+            } else {
+                return false
+            }
+
+            let current_hash = store.rep_history[(store.rep_len - 1) as usize]
+            log.emit(MoveAccepted {
+                mv: 0,
+                pos_hash: current_hash,
+                status: store.status,
+                end_reason: store.end_reason,
+            })
+
+            true
+        }
+
+        WithdrawTo { to } -> bool uses (mut store, ctx, mut log) {
+            let sender = ctx.caller()
+            let mut amount: u256 = 0
+
+            if sender == store.white {
+                amount = store.payout_white
+                if amount == 0 {
+                    return false
+                }
+                store.payout_white = 0
+            } else if sender == store.black {
+                amount = store.payout_black
+                if amount == 0 {
+                    return false
+                }
+                store.payout_black = 0
+            } else {
+                return false
+            }
+
+            // Commit payout before call (reentrancy-safe); revert on send failure.
+            assert(send_value(to, amount))
+            log.emit(Withdrawal { player: sender, to, amount })
+            true
+        }
+    }
+}

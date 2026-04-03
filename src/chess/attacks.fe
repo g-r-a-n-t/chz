@@ -1,0 +1,251 @@
+use ingot::{
+    meta_black_king_sq,
+    meta_white_king_sq,
+    piece_at,
+    PIECE_EMPTY,
+}
+
+use ingot::{abs_diff, is_black_piece, is_white_piece, piece_kind, sq, sq_file, sq_rank}
+
+fn is_attacker(piece: u8, by_white: bool, kind: u8) -> bool {
+    if by_white {
+        is_white_piece(piece) && piece_kind(piece) == kind
+    } else {
+        is_black_piece(piece) && piece_kind(piece) == kind
+    }
+}
+
+pub fn is_square_attacked(board_word: u256, meta_word: u256, sq0: u8, by_white: bool) -> bool {
+    let file = sq_file(sq0)
+    let rank = sq_rank(sq0)
+
+    // --- pawn attacks ---
+    // White pawns attack (file-1,rank-1) and (file+1,rank-1) relative to the attacked square.
+    if by_white {
+        if rank > 0 {
+            if file > 0 {
+                let p = piece_at(board_word, sq0 - 9)
+                if is_attacker(p, true, 1) {
+                    return true
+                }
+            }
+            if file < 7 {
+                let p = piece_at(board_word, sq0 - 7)
+                if is_attacker(p, true, 1) {
+                    return true
+                }
+            }
+        }
+    } else {
+        // Black pawns attack (file-1,rank+1) and (file+1,rank+1) relative to the attacked square.
+        if rank < 7 {
+            if file > 0 {
+                let p = piece_at(board_word, sq0 + 7)
+                if is_attacker(p, false, 1) {
+                    return true
+                }
+            }
+            if file < 7 {
+                let p = piece_at(board_word, sq0 + 9)
+                if is_attacker(p, false, 1) {
+                    return true
+                }
+            }
+        }
+    }
+
+    // --- king adjacency (use cached king squares) ---
+    let ksq = if by_white { meta_white_king_sq(meta_word) } else { meta_black_king_sq(meta_word) }
+    if ksq != sq0 {
+        let kf = sq_file(ksq)
+        let kr = sq_rank(ksq)
+        if abs_diff(kf, file) <= 1 && abs_diff(kr, rank) <= 1 {
+            return true
+        }
+    }
+
+    // --- knight attacks ---
+    // Attacker squares relative to target sq0.
+    if file <= 6 && rank <= 5 {
+        let p = piece_at(board_word, sq0 + 17)
+        if is_attacker(p, by_white, 2) {
+            return true
+        }
+    }
+    if file >= 1 && rank <= 5 {
+        let p = piece_at(board_word, sq0 + 15)
+        if is_attacker(p, by_white, 2) {
+            return true
+        }
+    }
+    if file <= 5 && rank <= 6 {
+        let p = piece_at(board_word, sq0 + 10)
+        if is_attacker(p, by_white, 2) {
+            return true
+        }
+    }
+    if file >= 2 && rank <= 6 {
+        let p = piece_at(board_word, sq0 + 6)
+        if is_attacker(p, by_white, 2) {
+            return true
+        }
+    }
+    if file <= 5 && rank >= 1 {
+        let p = piece_at(board_word, sq0 - 6)
+        if is_attacker(p, by_white, 2) {
+            return true
+        }
+    }
+    if file >= 2 && rank >= 1 {
+        let p = piece_at(board_word, sq0 - 10)
+        if is_attacker(p, by_white, 2) {
+            return true
+        }
+    }
+    if file <= 6 && rank >= 2 {
+        let p = piece_at(board_word, sq0 - 15)
+        if is_attacker(p, by_white, 2) {
+            return true
+        }
+    }
+    if file >= 1 && rank >= 2 {
+        let p = piece_at(board_word, sq0 - 17)
+        if is_attacker(p, by_white, 2) {
+            return true
+        }
+    }
+
+    // --- diagonal sliders (bishop/queen) ---
+    // NE
+    {
+        let mut f = file
+        let mut r = rank
+        while f < 7 && r < 7 {
+            f += 1
+            r += 1
+            let p = piece_at(board_word, sq(f, r))
+            if p != PIECE_EMPTY {
+                if is_attacker(p, by_white, 3) || is_attacker(p, by_white, 5) {
+                    return true
+                }
+                break
+            }
+        }
+    }
+    // NW
+    {
+        let mut f = file
+        let mut r = rank
+        while f > 0 && r < 7 {
+            f -= 1
+            r += 1
+            let p = piece_at(board_word, sq(f, r))
+            if p != PIECE_EMPTY {
+                if is_attacker(p, by_white, 3) || is_attacker(p, by_white, 5) {
+                    return true
+                }
+                break
+            }
+        }
+    }
+    // SE
+    {
+        let mut f = file
+        let mut r = rank
+        while f < 7 && r > 0 {
+            f += 1
+            r -= 1
+            let p = piece_at(board_word, sq(f, r))
+            if p != PIECE_EMPTY {
+                if is_attacker(p, by_white, 3) || is_attacker(p, by_white, 5) {
+                    return true
+                }
+                break
+            }
+        }
+    }
+    // SW
+    {
+        let mut f = file
+        let mut r = rank
+        while f > 0 && r > 0 {
+            f -= 1
+            r -= 1
+            let p = piece_at(board_word, sq(f, r))
+            if p != PIECE_EMPTY {
+                if is_attacker(p, by_white, 3) || is_attacker(p, by_white, 5) {
+                    return true
+                }
+                break
+            }
+        }
+    }
+
+    // --- orthogonal sliders (rook/queen) ---
+    // North
+    {
+        let mut r = rank
+        while r < 7 {
+            r += 1
+            let p = piece_at(board_word, sq(file, r))
+            if p != PIECE_EMPTY {
+                if is_attacker(p, by_white, 4) || is_attacker(p, by_white, 5) {
+                    return true
+                }
+                break
+            }
+        }
+    }
+    // South
+    {
+        let mut r = rank
+        while r > 0 {
+            r -= 1
+            let p = piece_at(board_word, sq(file, r))
+            if p != PIECE_EMPTY {
+                if is_attacker(p, by_white, 4) || is_attacker(p, by_white, 5) {
+                    return true
+                }
+                break
+            }
+        }
+    }
+    // East
+    {
+        let mut f = file
+        while f < 7 {
+            f += 1
+            let p = piece_at(board_word, sq(f, rank))
+            if p != PIECE_EMPTY {
+                if is_attacker(p, by_white, 4) || is_attacker(p, by_white, 5) {
+                    return true
+                }
+                break
+            }
+        }
+    }
+    // West
+    {
+        let mut f = file
+        while f > 0 {
+            f -= 1
+            let p = piece_at(board_word, sq(f, rank))
+            if p != PIECE_EMPTY {
+                if is_attacker(p, by_white, 4) || is_attacker(p, by_white, 5) {
+                    return true
+                }
+                break
+            }
+        }
+    }
+
+    false
+}
+
+pub fn in_check(board_word: u256, meta_word: u256, white_side: bool) -> bool {
+    if white_side {
+        is_square_attacked(board_word, meta_word, meta_white_king_sq(meta_word), false)
+    } else {
+        is_square_attacked(board_word, meta_word, meta_black_king_sq(meta_word), true)
+    }
+}

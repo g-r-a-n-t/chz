@@ -1,0 +1,114 @@
+use core::num::IntDowncast
+use ingot::{CASTLE_BK, CASTLE_BQ, CASTLE_WK, CASTLE_WQ, EP_NONE}
+
+// Bit layout (working, can change early):
+// 0: side-to-move (1=white, 0=black)
+// 1..4: castling rights (WK,WQ,BK,BQ)
+// 5..8: ep file (0..7, 0xF none)
+// 9..16: halfmove clock (u8)
+// 17..32: fullmove number (u16)
+// 33..38: white king square (u6)
+// 39..44: black king square (u6)
+
+const STM_SHIFT: u256 = 0
+const CASTLE_SHIFT: u256 = 1
+const EP_SHIFT: u256 = 5
+const HALF_SHIFT: u256 = 9
+const FULL_SHIFT: u256 = 17
+const WK_SHIFT: u256 = 33
+const BK_SHIFT: u256 = 39
+
+const STM_MASK: u256 = 0x1
+const CASTLE_MASK: u256 = 0xF
+const EP_MASK: u256 = 0xF
+const HALF_MASK: u256 = 0xFF
+const FULL_MASK: u256 = 0xFFFF
+const KING_SQ_MASK: u256 = 0x3F
+
+pub fn meta_side_to_move_is_white(meta: u256) -> bool {
+    ((meta >> STM_SHIFT) & STM_MASK) == 1
+}
+
+pub fn meta_set_side_to_move(meta: u256, white_to_move: bool) -> u256 {
+    let bit: u256 = if white_to_move { 1 } else { 0 }
+    let cleared = meta & ~(STM_MASK << STM_SHIFT)
+    cleared | (bit << STM_SHIFT)
+}
+
+pub fn meta_castling_rights(meta: u256) -> u8 {
+    ((meta >> CASTLE_SHIFT) & CASTLE_MASK).downcast_truncate()
+}
+
+pub fn meta_set_castling_rights(meta: u256, rights: u8) -> u256 {
+    let cleared = meta & ~(CASTLE_MASK << CASTLE_SHIFT)
+    cleared | (((rights as u256) & CASTLE_MASK) << CASTLE_SHIFT)
+}
+
+pub fn meta_ep_file(meta: u256) -> u8 {
+    ((meta >> EP_SHIFT) & EP_MASK).downcast_truncate()
+}
+
+pub fn meta_set_ep_file(meta: u256, file: u8) -> u256 {
+    let cleared = meta & ~(EP_MASK << EP_SHIFT)
+    cleared | (((file as u256) & EP_MASK) << EP_SHIFT)
+}
+
+pub fn meta_halfmove_clock(meta: u256) -> u16 {
+    ((meta >> HALF_SHIFT) & HALF_MASK).downcast_truncate()
+}
+
+pub fn meta_set_halfmove_clock(meta: u256, halfmove: u16) -> u256 {
+    let cleared = meta & ~(HALF_MASK << HALF_SHIFT)
+    cleared | (((halfmove as u256) & HALF_MASK) << HALF_SHIFT)
+}
+
+pub fn meta_fullmove_number(meta: u256) -> u16 {
+    ((meta >> FULL_SHIFT) & FULL_MASK).downcast_truncate()
+}
+
+pub fn meta_set_fullmove_number(meta: u256, fullmove: u16) -> u256 {
+    let cleared = meta & ~(FULL_MASK << FULL_SHIFT)
+    cleared | (((fullmove as u256) & FULL_MASK) << FULL_SHIFT)
+}
+
+pub fn meta_white_king_sq(meta: u256) -> u8 {
+    ((meta >> WK_SHIFT) & KING_SQ_MASK).downcast_truncate()
+}
+
+pub fn meta_set_white_king_sq(meta: u256, sq: u8) -> u256 {
+    let cleared = meta & ~(KING_SQ_MASK << WK_SHIFT)
+    cleared | (((sq as u256) & KING_SQ_MASK) << WK_SHIFT)
+}
+
+pub fn meta_black_king_sq(meta: u256) -> u8 {
+    ((meta >> BK_SHIFT) & KING_SQ_MASK).downcast_truncate()
+}
+
+pub fn meta_set_black_king_sq(meta: u256, sq: u8) -> u256 {
+    let cleared = meta & ~(KING_SQ_MASK << BK_SHIFT)
+    cleared | (((sq as u256) & KING_SQ_MASK) << BK_SHIFT)
+}
+
+pub fn meta_init_standard() -> u256 {
+    let mut meta: u256 = 0
+    meta = meta_set_side_to_move(meta, true)
+    meta = meta_set_castling_rights(meta, CASTLE_WK | CASTLE_WQ | CASTLE_BK | CASTLE_BQ)
+    meta = meta_set_ep_file(meta, EP_NONE)
+    meta = meta_set_halfmove_clock(meta, 0)
+    meta = meta_set_fullmove_number(meta, 1)
+    meta = meta_set_white_king_sq(meta, 4)  // e1
+    meta = meta_set_black_king_sq(meta, 60) // e8
+    meta
+}
+
+#[test]
+fn test_meta_init_standard_fields() {
+    let meta = meta_init_standard()
+    assert(meta_side_to_move_is_white(meta))
+    assert(meta_castling_rights(meta) == (CASTLE_WK | CASTLE_WQ | CASTLE_BK | CASTLE_BQ))
+    assert(meta_ep_file(meta) == EP_NONE)
+    assert(meta_halfmove_clock(meta) == 0)
+    assert(meta_fullmove_number(meta) == 1)
+    assert(meta_white_king_sq(meta) == 4)
+    assert(meta_black_king_sq(meta) == 60)
+}

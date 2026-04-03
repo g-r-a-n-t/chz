@@ -1,0 +1,86 @@
+use core::num::IntDowncast
+use std::abi::sol
+use std::evm::Ctx
+
+use ingot::{
+    classify_terminal_state,
+    repetition_hash,
+    validate_move,
+    EndReason,
+    GameStatus,
+}
+
+const STATUS_ONGOING: u8 = 0
+const STATUS_WHITE_WON: u8 = 1
+const STATUS_BLACK_WON: u8 = 2
+const STATUS_DRAW: u8 = 3
+
+fn status_u8(status: GameStatus) -> u8 {
+    match status {
+        GameStatus::Ongoing => STATUS_ONGOING,
+        GameStatus::WhiteWon => STATUS_WHITE_WON,
+        GameStatus::BlackWon => STATUS_BLACK_WON,
+        GameStatus::Draw => STATUS_DRAW,
+    }
+}
+
+fn reason_u8(reason: EndReason) -> u8 {
+    match reason {
+        EndReason::None => 0,
+        EndReason::Checkmate => 1,
+        EndReason::Stalemate => 2,
+        EndReason::Threefold => 3,
+        EndReason::Fivefold => 4,
+        EndReason::FiftyMove => 5,
+        EndReason::SeventyFiveMove => 6,
+        EndReason::DeadPosition => 7,
+        EndReason::Resignation => 8,
+        EndReason::Timeout => 9,
+        EndReason::TimeoutNoMate => 10,
+        EndReason::AgreedDraw => 11,
+    }
+}
+
+msg ChzRulesMsg {
+    #[selector = sol("applyMove(uint256,uint256,uint256)")]
+    ApplyMove { board_word: u256, meta_word: u256, mv_word: u256 } -> (u256, u256, u256, u256, u256, u256),
+
+    #[selector = sol("classify(uint256,uint256)")]
+    Classify { board_word: u256, meta_word: u256 } -> (u256, u256),
+
+    #[selector = sol("positionHash(uint256,uint256)")]
+    PositionHash { board_word: u256, meta_word: u256 } -> u256,
+}
+
+/// Stateless rules surface for off-chain tooling and hevm verification.
+pub contract ChzRules uses (ctx: Ctx) {
+    recv ChzRulesMsg {
+        ApplyMove { board_word, meta_word, mv_word } -> (u256, u256, u256, u256, u256, u256) uses (ctx) {
+            let mv: u32 = mv_word.downcast_truncate()
+            match validate_move(board_word, meta_word, mv) {
+                Ok((board2, meta2)) => {
+                    let (status, reason) = classify_terminal_state(board2, meta2)
+                    let pos_hash = repetition_hash(board2, meta2)
+                    (
+                        1,
+                        board2,
+                        meta2,
+                        status_u8(status) as u256,
+                        reason_u8(reason) as u256,
+                        pos_hash,
+                    )
+                }
+                Err(_) => (0, board_word, meta_word, 0, 0, 0)
+            }
+        }
+
+        Classify { board_word, meta_word } -> (u256, u256) uses (ctx) {
+            let (status, reason) = classify_terminal_state(board_word, meta_word)
+            (status_u8(status) as u256, reason_u8(reason) as u256)
+        }
+
+        PositionHash { board_word, meta_word } -> u256 uses (ctx) {
+            repetition_hash(board_word, meta_word)
+        }
+    }
+}

@@ -1,0 +1,11 @@
+# Rust / Fe
+target/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Local secrets
+.env
+

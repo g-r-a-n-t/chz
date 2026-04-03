@@ -1,0 +1,21 @@
+use ingot::ValidationError
+
+fn result_tuple(ok: bool) -> Result<ValidationError, (u256, u256)> {
+    if ok {
+        Ok((1, 2))
+    } else {
+        Err(ValidationError::BadGeometry)
+    }
+}
+
+#[test]
+fn test_result_tuple_repro() {
+    match result_tuple(ok: true) {
+        Ok((a, b)) => {
+            assert(a == 1)
+            assert(b == 2)
+        }
+        _ => assert(false),
+    }
+}
+

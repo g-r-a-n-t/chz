@@ -1,0 +1,172 @@
+use std::evm::{Address, Call, Create, Evm}
+use std::evm::effects::assert
+use std::abi::sol
+
+use ingot::{encode_move, ChzGame}
+
+msg GameMsg {
+    #[selector = sol("submitMove(uint32,uint8)")]
+    SubmitMove { mv: u32, claim_flags: u8 } -> bool,
+
+    #[selector = sol("claimDrawNow(uint8)")]
+    ClaimDrawNow { reason: u8 } -> bool,
+
+    #[selector = sol("resign()")]
+    Resign -> bool,
+
+    #[selector = sol("withdrawTo(address)")]
+    WithdrawTo { to: Address } -> bool,
+}
+
+msg ProxyMsg {
+    #[selector = sol("submit(address,uint32,uint8)")]
+    Submit { game: Address, mv: u32, claim_flags: u8 } -> bool,
+    #[selector = sol("claim(address,uint8)")]
+    Claim { game: Address, reason: u8 } -> bool,
+    #[selector = sol("resign(address)")]
+    Resign { game: Address } -> bool,
+    #[selector = sol("withdraw(address,address)")]
+    Withdraw { game: Address, to: Address } -> bool,
+}
+
+pub contract PlayerProxy uses (call: mut Call) {
+    recv ProxyMsg {
+        Submit { game, mv, claim_flags } -> bool uses (mut call) {
+            call.call(addr: game, gas: 400000, value: 0, message: GameMsg::SubmitMove { mv, claim_flags })
+        }
+
+        Claim { game, reason } -> bool uses (mut call) {
+            call.call(addr: game, gas: 250000, value: 0, message: GameMsg::ClaimDrawNow { reason })
+        }
+
+        Resign { game } -> bool uses (mut call) {
+            call.call(addr: game, gas: 200000, value: 0, message: GameMsg::Resign {})
+        }
+
+        Withdraw { game, to } -> bool uses (mut call) {
+            call.call(addr: game, gas: 200000, value: 0, message: GameMsg::WithdrawTo { to: to })
+        }
+    }
+}
+
+#[test(balance = 1000000000)]
+fn test_game_deploy_and_first_move() uses (cr: mut Create, evm: mut Evm) {
+    let white = cr.create2<PlayerProxy>(value: 0, args: (), salt: 1)
+    let black = cr.create2<PlayerProxy>(value: 0, args: (), salt: 2)
+
+    let wager: u256 = 7
+    let game = cr.create2<ChzGame>(value: wager + wager, args: (white, black, wager), salt: 3)
+    assert(game.inner != 0)
+
+    let e2e4 = encode_move(from_sq: 12, to_sq: 28, promo: 0)
+    let ok1 = evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: e2e4, claim_flags: 0 })
+    assert(ok1 == true)
+}
+
+#[test(balance = 1000000000)]
+fn test_game_turn_auth() uses (cr: mut Create, evm: mut Evm) {
+    let white = cr.create2<PlayerProxy>(value: 0, args: (), salt: 11)
+    let black = cr.create2<PlayerProxy>(value: 0, args: (), salt: 12)
+
+    let wager: u256 = 7
+    let game = cr.create2<ChzGame>(value: wager + wager, args: (white, black, wager), salt: 13)
+    assert(game.inner != 0)
+
+    let e2e4 = encode_move(from_sq: 12, to_sq: 28, promo: 0)
+    let ok1 = evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: e2e4, claim_flags: 0 })
+    assert(ok1 == true)
+
+    let e7e5 = encode_move(from_sq: 52, to_sq: 36, promo: 0)
+    let bad = evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: e7e5, claim_flags: 0 })
+    assert(bad == false)
+
+    // Black plays e7e5.
+    let ok2 = evm.call(addr: black, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: e7e5, claim_flags: 0 })
+    assert(ok2 == true)
+}
+
+#[test(balance = 1000000000)]
+fn test_game_resign_and_withdraw() uses (cr: mut Create, evm: mut Evm) {
+    let white = cr.create2<PlayerProxy>(value: 0, args: (), salt: 21)
+    let black = cr.create2<PlayerProxy>(value: 0, args: (), salt: 22)
+
+    let wager: u256 = 7
+    let game = cr.create2<ChzGame>(value: wager + wager, args: (white, black, wager), salt: 23)
+    assert(game.inner != 0)
+
+    let resigned = evm.call(addr: white, gas: 300000, value: 0, message: ProxyMsg::Resign { game })
+    assert(resigned == true)
+
+    let recipient = Address { inner: 0x9999 }
+    let w_ok = evm.call(addr: black, gas: 300000, value: 0, message: ProxyMsg::Withdraw { game, to: recipient })
+    assert(w_ok == true)
+
+    let w_again = evm.call(addr: black, gas: 300000, value: 0, message: ProxyMsg::Withdraw { game, to: recipient })
+    assert(w_again == false)
+}
+
+#[test(balance = 1000000000)]
+fn test_game_threefold_claim_draw_now() uses (cr: mut Create, evm: mut Evm) {
+    let white = cr.create2<PlayerProxy>(value: 0, args: (), salt: 31)
+    let black = cr.create2<PlayerProxy>(value: 0, args: (), salt: 32)
+
+    let wager: u256 = 7
+    let game = cr.create2<ChzGame>(value: wager + wager, args: (white, black, wager), salt: 33)
+    assert(game.inner != 0)
+
+    let g1f3 = encode_move(from_sq: 6, to_sq: 21, promo: 0)
+    let g8f6 = encode_move(from_sq: 62, to_sq: 45, promo: 0)
+    let f3g1 = encode_move(from_sq: 21, to_sq: 6, promo: 0)
+    let f6g8 = encode_move(from_sq: 45, to_sq: 62, promo: 0)
+
+    // 2 full cycles returning to the initial position (3 occurrences total).
+    assert(evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: g1f3, claim_flags: 0 }) == true)
+    assert(evm.call(addr: black, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: g8f6, claim_flags: 0 }) == true)
+    assert(evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: f3g1, claim_flags: 0 }) == true)
+    assert(evm.call(addr: black, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: f6g8, claim_flags: 0 }) == true)
+
+    assert(evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: g1f3, claim_flags: 0 }) == true)
+    assert(evm.call(addr: black, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: g8f6, claim_flags: 0 }) == true)
+    assert(evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: f3g1, claim_flags: 0 }) == true)
+    assert(evm.call(addr: black, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: f6g8, claim_flags: 0 }) == true)
+
+    // Claim threefold.
+    assert(evm.call(addr: white, gas: 400000, value: 0, message: ProxyMsg::Claim { game, reason: 1 }) == true)
+
+    // Game ended; further moves rejected.
+    assert(evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: g1f3, claim_flags: 0 }) == false)
+
+    // Both players can withdraw their half.
+    let to1 = Address { inner: 0x1111 }
+    let to2 = Address { inner: 0x2222 }
+    assert(evm.call(addr: white, gas: 300000, value: 0, message: ProxyMsg::Withdraw { game, to: to1 }) == true)
+    assert(evm.call(addr: black, gas: 300000, value: 0, message: ProxyMsg::Withdraw { game, to: to2 }) == true)
+}
+
+#[test(balance = 1000000000)]
+fn test_game_fivefold_auto_draw() uses (cr: mut Create, evm: mut Evm) {
+    let white = cr.create2<PlayerProxy>(value: 0, args: (), salt: 41)
+    let black = cr.create2<PlayerProxy>(value: 0, args: (), salt: 42)
+
+    let wager: u256 = 7
+    let game = cr.create2<ChzGame>(value: wager + wager, args: (white, black, wager), salt: 43)
+    assert(game.inner != 0)
+
+    let g1f3 = encode_move(from_sq: 6, to_sq: 21, promo: 0)
+    let g8f6 = encode_move(from_sq: 62, to_sq: 45, promo: 0)
+    let f3g1 = encode_move(from_sq: 21, to_sq: 6, promo: 0)
+    let f6g8 = encode_move(from_sq: 45, to_sq: 62, promo: 0)
+
+    // 4 full cycles returning to the initial position (5 occurrences total).
+    let mut n: u8 = 0
+    while n < 4 {
+        assert(evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: g1f3, claim_flags: 0 }) == true)
+        assert(evm.call(addr: black, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: g8f6, claim_flags: 0 }) == true)
+        assert(evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: f3g1, claim_flags: 0 }) == true)
+        assert(evm.call(addr: black, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: f6g8, claim_flags: 0 }) == true)
+        n += 1
+    }
+
+    // Auto draw should have ended the game by now.
+    assert(evm.call(addr: white, gas: 700000, value: 0, message: ProxyMsg::Submit { game, mv: g1f3, claim_flags: 0 }) == false)
+}

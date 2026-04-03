@@ -1,0 +1,114 @@
+{
+  "version": "2026-04-03",
+  "vectors": [
+    {
+      "id": "TV-001",
+      "name": "Start position",
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "expected_validity": "BASIC_VALID",
+      "notes": "Baseline legal start state."
+    },
+    {
+      "id": "TV-002",
+      "name": "Missing black king",
+      "fen": "8/8/8/8/8/8/8/4K3 w - - 0 1",
+      "expected_validity": "INVALID",
+      "expected_failures": [
+        "no_black_king"
+      ]
+    },
+    {
+      "id": "TV-003",
+      "name": "Bad castling rights with missing h1 rook",
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBN1 w KQkq - 0 1",
+      "expected_validity": "INVALID",
+      "expected_failures": [
+        "bad_castling_rights"
+      ]
+    },
+    {
+      "id": "TV-004",
+      "name": "Spec-FEN en passant after 1.e4",
+      "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+      "expected_validity": "BASIC_VALID",
+      "policy_specific_expectations": {
+        "spec_fen": {
+          "ep_square": "e3"
+        },
+        "strict_captureable": {
+          "normalized_ep_square": "-"
+        }
+      },
+      "notes": "Valid under the original FEN convention even though no black pawn can capture e3."
+    },
+    {
+      "id": "TV-005",
+      "name": "Adjacent kings",
+      "fen": "8/8/8/8/8/8/4Kk2/8 w - - 0 1",
+      "expected_validity": "INVALID",
+      "expected_failures": [
+        "kings_adjacent",
+        "side_not_to_move_in_check"
+      ]
+    },
+    {
+      "id": "TV-006",
+      "name": "Pawn on back rank",
+      "fen": "4k3/8/8/8/8/8/8/P3K3 w - - 0 1",
+      "expected_validity": "INVALID",
+      "expected_failures": [
+        "pawns_on_backrank"
+      ]
+    },
+    {
+      "id": "TV-007",
+      "name": "Too many white pawns",
+      "fen": "4k3/8/P7/PPPPPPPP/8/8/8/4K3 w - - 0 1",
+      "expected_validity": "INVALID",
+      "expected_failures": [
+        "too_many_white_pawns"
+      ]
+    },
+    {
+      "id": "TV-008",
+      "name": "Both kings in check",
+      "fen": "4k3/8/8/8/8/8/4R3/4K2r w - - 0 1",
+      "expected_validity": "INVALID",
+      "expected_failures": [
+        "side_not_to_move_in_check",
+        "impossible_check"
+      ],
+      "notes": "Synthetic impossible import; use as a basic illegality smoke test."
+    },
+    {
+      "id": "TV-009",
+      "name": "Opposite check (side not to move in check)",
+      "fen": "4k3/8/8/8/8/8/4r3/4K3 b - - 0 1",
+      "expected_validity": "INVALID",
+      "expected_failures": [
+        "side_not_to_move_in_check"
+      ]
+    },
+    {
+      "id": "TV-010",
+      "name": "Simple stalemate",
+      "fen": "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1",
+      "expected_validity": "BASIC_VALID",
+      "expected_terminal": "stalemate"
+    },
+    {
+      "id": "TV-011",
+      "name": "Simple checkmate",
+      "fen": "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1",
+      "expected_validity": "BASIC_VALID",
+      "expected_terminal": "checkmate"
+    },
+    {
+      "id": "TV-012",
+      "name": "Kings only dead position",
+      "fen": "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      "expected_validity": "BASIC_VALID",
+      "expected_terminal": "dead_position"
+    }
+  ]
+}

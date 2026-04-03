@@ -1,0 +1,114 @@
+use core::num::IntDowncast
+use ingot::{
+    PIECE_BB,
+    PIECE_BK,
+    PIECE_BN,
+    PIECE_BP,
+    PIECE_BQ,
+    PIECE_BR,
+    PIECE_EMPTY,
+    PIECE_WB,
+    PIECE_WK,
+    PIECE_WN,
+    PIECE_WP,
+    PIECE_WQ,
+    PIECE_WR,
+}
+
+const NIBBLE_MASK: u256 = 0xF
+
+pub fn piece_at(board_word: u256, sq: u8) -> u8 {
+    let shift: u256 = (sq as u256) * 4
+    let piece: u256 = (board_word >> shift) & NIBBLE_MASK
+    piece.downcast_truncate()
+}
+
+pub fn set_piece(board_word: u256, sq: u8, piece: u8) -> u256 {
+    let shift: u256 = (sq as u256) * 4
+    let mask: u256 = NIBBLE_MASK << shift
+    let cleared = board_word & ~mask
+    let insert: u256 = ((piece as u256) & NIBBLE_MASK) << shift
+    cleared | insert
+}
+
+pub fn clear_piece(board_word: u256, sq: u8) -> u256 {
+    set_piece(board_word, sq, PIECE_EMPTY)
+}
+
+pub fn move_piece(board_word: u256, from_sq: u8, to_sq: u8) -> u256 {
+    let piece = piece_at(board_word, from_sq)
+    let cleared = clear_piece(board_word, from_sq)
+    set_piece(cleared, to_sq, piece)
+}
+
+pub fn board_init_standard() -> u256 {
+    let mut board: u256 = 0
+
+    // White pieces.
+    board = set_piece(board, 0, PIECE_WR)
+    board = set_piece(board, 1, PIECE_WN)
+    board = set_piece(board, 2, PIECE_WB)
+    board = set_piece(board, 3, PIECE_WQ)
+    board = set_piece(board, 4, PIECE_WK)
+    board = set_piece(board, 5, PIECE_WB)
+    board = set_piece(board, 6, PIECE_WN)
+    board = set_piece(board, 7, PIECE_WR)
+
+    board = set_piece(board, 8, PIECE_WP)
+    board = set_piece(board, 9, PIECE_WP)
+    board = set_piece(board, 10, PIECE_WP)
+    board = set_piece(board, 11, PIECE_WP)
+    board = set_piece(board, 12, PIECE_WP)
+    board = set_piece(board, 13, PIECE_WP)
+    board = set_piece(board, 14, PIECE_WP)
+    board = set_piece(board, 15, PIECE_WP)
+
+    // Black pieces.
+    board = set_piece(board, 48, PIECE_BP)
+    board = set_piece(board, 49, PIECE_BP)
+    board = set_piece(board, 50, PIECE_BP)
+    board = set_piece(board, 51, PIECE_BP)
+    board = set_piece(board, 52, PIECE_BP)
+    board = set_piece(board, 53, PIECE_BP)
+    board = set_piece(board, 54, PIECE_BP)
+    board = set_piece(board, 55, PIECE_BP)
+
+    board = set_piece(board, 56, PIECE_BR)
+    board = set_piece(board, 57, PIECE_BN)
+    board = set_piece(board, 58, PIECE_BB)
+    board = set_piece(board, 59, PIECE_BQ)
+    board = set_piece(board, 60, PIECE_BK)
+    board = set_piece(board, 61, PIECE_BB)
+    board = set_piece(board, 62, PIECE_BN)
+    board = set_piece(board, 63, PIECE_BR)
+
+    board
+}
+
+#[test]
+fn test_set_and_get_piece() {
+    let mut board: u256 = 0
+    board = set_piece(board, 0, 0x1)
+    assert(piece_at(board, 0) == 0x1)
+    assert(piece_at(board, 1) == 0x0)
+}
+
+#[test]
+fn test_move_piece() {
+    let mut board: u256 = 0
+    board = set_piece(board, 0, 0x4)
+    board = move_piece(board, 0, 56)
+    assert(piece_at(board, 0) == 0x0)
+    assert(piece_at(board, 56) == 0x4)
+}
+
+#[test]
+fn test_board_init_standard_spot_checks() {
+    let board = board_init_standard()
+    assert(piece_at(board, 0) == PIECE_WR)   // a1
+    assert(piece_at(board, 4) == PIECE_WK)   // e1
+    assert(piece_at(board, 12) == PIECE_WP)  // e2
+    assert(piece_at(board, 52) == PIECE_BP)  // e7
+    assert(piece_at(board, 60) == PIECE_BK)  // e8
+    assert(piece_at(board, 63) == PIECE_BR)  // h8
+}
